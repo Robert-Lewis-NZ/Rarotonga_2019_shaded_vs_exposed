@@ -1,0 +1,818 @@
+s---
+title: "Photobiology"
+author: "Matt Nitschke & Rob Lewis"
+date: "150919"
+output: html_document
+---
+
+## Import Packages
+
+```{r message = FALSE}
+# Libraries for plotting and being tidy
+library(tidyverse)
+library(broom)
+library(purrr)
+library(lubridate)
+theme_set(theme_bw())
+library(ggrepel)
+
+# Libraries for fitting curves
+library(nls.multstart)
+library(nlstools)
+
+# Libraries for analysing spectral data
+library(pavo)
+library(ggspectra)
+library(photobiology)
+library(photobiologyWavebands)
+library(photobiologyInOut)
+
+# Libraries for statistical tests and tables
+library(rstatix)
+library(pander)
+```
+
+# 1 Data imports
+
+#### 1.1 Import and clean the RLC data. Calculate fluorescence parameters
+
+```{r}
+PAM <- read_csv("PAM_data/PAM.csv")  %>%
+  group_by(PAMID) %>%
+  mutate(date = dmy(time_date),
+         Fm = ifelse(Fm <= F, F+1, Fm), # There should not be any Fm values < F
+         PAR = ifelse(PAR == 0, 0.001, PAR), # PAR values = 0 may result in infinite values during fitting
+         FqFm = (Fm - F)/Fm, # Quantum yield of PSII
+         rETR = FqFm * PAR, # Relative electron transport rate (we will update this later with absorbance measurements)
+         Fo.p = first(F) / (first(FqFm) + (first(F)/Fm)), # Fo'
+         onemC = (Fm - F)/(Fm - Fo.p), # [1 - C]
+         Fv.p = Fm - Fo.p, # Fv'
+         onemQ = (Fv.p/Fm)/first(FqFm)) %>% # [1 - Q]
+  ungroup() %>%
+  mutate(species_short = paste0(substr(genus, start = 1, stop = 1), ".", " ", sapply(strsplit(species, split = " "), tail, 1L)))
+
+# Sanity check: PAR count across dataset for any missing data
+PAM %>% 
+  group_by(habitat, PAR) %>%
+  count(PAR, sort = TRUE)
+```
+
+Spectral reflectance of corals was measured with a USB4000 spectroradiometer (Ocean Optics). A bifurcated fibre-optic cable combined with a PX-2 Pulsed Xenon Lamp. Reference reflectance spectra of the light source (against a coral skeleton standard) and background noise (in darkness) were stored and each measurement acquired with the fibre optic positioned at a 90 deg angle to the coral surface at approximately 8 mm distance.
+
+#### 1.2 Reflectance spectra of coral tissues. Import, smooth, then covert to long format and multi-spec(mspct)
+
+```{r}
+# Pavo rspec object
+specs <- getspec(where = "ocean_optics_data/", ext = "txt", lim = c(400, 750), decimal = ".") %>%
+procspec(opt = "smooth", span = 0.1)
+
+# Create a long-format df for ggplot
+map <- PAM %>%
+  select(sampleID, PAMID, genus, species, site, habitat, replicate) %>%
+  group_by(sampleID, PAMID, genus, species, site, habitat, replicate) %>%
+  slice(1) %>%
+  ungroup
+
+specslong <- specs %>%
+  pivot_longer(names_to = "sampleID", values_to = "reflectance", -wl)
+  
+specslong <- left_join(specslong, map)
+```
+
+# 2. Explore the spectral qualities by habitat
+
+#### 2.1 Summarise spectra
+
+```{r}
+# An explanation of these parameters can be found by typing ?summary.rspec in the console
+spec_summary <- summary(specs) %>%
+  tibble::rownames_to_column(var = "sampleID") %>%
+  pivot_longer(-sampleID, names_to = "variable") %>%
+  left_join(., map)
+```
+
+#### 2.2 Plot differences in spectral reflectance according to habitat
+
+```{r}
+# Visualise
+spec_summary %>%
+  filter(variable == "B2") %>% # Choose a parameter of interest to summarise
+  ggplot() +
+  geom_boxplot(aes(x = habitat, y = value)) +
+  facet_wrap(~ species, labeller = labeller(.multi_line = FALSE)) +
+  theme(aspect.ratio = 1) +
+  ylab("B2 Mean Brightness") +
+  xlab("Habitat")
+```
+
+#### 2.3 Supplementary Figure X plot of all spectra
+
+```{r}
+# Plot all replicates
+specslong %>%
+  mutate(absorbance = 1-(reflectance/100)) %>% # Convert reflectance to absorbance
+ggplot(aes(wl, absorbance, colour = habitat, group = PAMID)) +
+  geom_line(aes(linetype = factor(replicate))) +
+  facet_wrap(~ species) +
+  scale_fill_identity() +
+  scale_x_wl_continuous() +
+  ylim(values = c(0.5, 1)) +
+  scale_colour_manual(values = c("black", "orange")) +
+  theme(aspect.ratio = 1)
+```
+
+#### 2.4 Supplementary Figure X plot of spectra (means +- sd)
+
+```{r}
+# Plot means and error
+specslong %>%
+  mutate(absorbance = 1-(reflectance/100)) %>% # Convert reflectance to absorbance
+  group_by(wl, genus, species, habitat) %>%
+  summarise(mean_absorbance = mean(absorbance),
+            sd_absorbance = sd(absorbance),
+            sem_absorbance = sd_absorbance/sqrt(5)) %>%
+ggplot(aes(wl, mean_absorbance, colour = habitat, fill = habitat)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = mean_absorbance - sem_absorbance, ymax = mean_absorbance + sem_absorbance), alpha = 0.3) +
+  facet_wrap(~ species, labeller = labeller(.multi_line = FALSE)) +
+  scale_x_wl_continuous() +
+  scale_colour_manual(values = c("black", "coral")) +
+  scale_fill_manual(values = c("black", "coral")) +
+  theme(aspect.ratio = 1)
+```
+
+#### 2.5 Map in the A675 values from the spectra
+
+Absorptance (A675) estimations were calculated as A = 1−R, assuming that the amount of light transmitted through the coral skeleton was negligible (Scheufen et al 2017 Scientific Reports)
+
+NOTE: Normally A675 is then further normalised to Chlorophyll content. We do not have this value.
+
+```{r}
+specslong_De <- specslong %>%
+  mutate(De = 1-(reflectance/100)) %>%
+  filter(wl == 675 | wl == 750) %>%
+  pivot_wider(names_from = wl, values_from = De, names_prefix = "De_", id_cols = c(PAMID, genus, species, site, habitat, replicate)) %>%
+  mutate(A675 = De_675 - De_750) # Correct for scattering at 750 nm - IS THIS OPTIONAL?
+```
+
+The package effect describes the decreased absorption of pigments in cells compared to the absorption potential of the same amount of pigment in solution (Duysens, 1956; Kirk, 1976, 1994; Geider and Osborne, 1987). An increase in pigment packaging occurs either as cell size increases or the internal concentration of pigments increases (Kirk, 1976; Morel and Bricaud, 1981; Sosik and Mitchell, 1994).
+
+## 3. Fitting of rapid light curve data (RLC)
+
+#### 3.1 Bring in spectral absorbance data to recalculate rETR
+
+```{r}
+PAM <- specslong_De %>%
+  left_join(PAM, .) %>%
+  mutate(rETR = FqFm * PAR * A675) # Relative electron transport rate adjusted for Absorbance at 675nm
+```
+
+#### 3.2 FqFm vs E (PAR): Define the equation
+
+```{r}
+# Define the Hennige et al 2008 FqFm equation
+Hennige <- function(FqFmmax, Ek, x) {
+  model <- ((FqFmmax*Ek)*(1-exp(-x/Ek)))/x
+  return(model)
+}
+```
+
+#### 3.3 Fit the FqFm LC using purrr::map to fit across groups
+
+```{r}
+# Fit the quantum yield against the PAR_adjusted data 
+FqFmfits <- PAM %>%
+  group_by(., PAMID, genus, species, habitat, replicate) %>%
+  nest() %>%
+  mutate(fit = purrr::map(data, ~ nls_multstart(FqFm ~ Hennige(FqFmmax, Ek, x = PAR),
+                     data = .x,
+                     iter = 250,
+                     start_lower = c(FqFmmax = 0.2, Ek = 5),
+                     start_upper = c(FqFmmax = 0.85, Ek = 1380),
+                     supp_errors = 'Y',
+                     convergence_count = 100,
+                     na.action = na.omit,
+                     lower = c(FqFmmax = 0.1, Ek = 5))))
+```
+
+#### 3.4 Tidy the fits and generate conf intervals of parameters
+
+```{r}
+# get summary
+FqFminfo <- FqFmfits %>%
+  mutate(summary = map(fit, glance)) %>%
+  unnest(summary)
+# get parameters
+FqFmparams <- FqFmfits %>%
+  mutate(., p = map(fit, tidy)) %>%
+  unnest(p)
+# get confidence intervals
+FqFmCI <- FqFmfits %>%
+  mutate(., cis = map(fit, confint2),
+         cis = map(cis, data.frame)) %>%
+  unnest(cis) %>%
+  rename(., conf.low = X2.5.., conf.high = X97.5..) %>%
+  group_by(., PAMID) %>%
+  mutate(., term = c('FqFmmax', 'Ek')) %>%
+  ungroup() %>%
+  select(., -data, -fit)
+
+# merge parameters and CI estimates
+FqFmparams <- merge(FqFmparams, FqFmCI, by = intersect(names(FqFmparams), names(FqFmCI)))
+```
+
+#### 3.5 Check output for convergence from start values and quality of fit
+
+```{r}
+dplyr::select(FqFminfo, isConv, PAMID, logLik, AIC, BIC, deviance, df.residual)
+```
+
+#### 3.6 Statistical tests of fit parameters
+
+```{r}
+# AOV FqFmmax
+FqFmmax <- FqFmparams %>% filter(term == "FqFmmax")
+
+## Normality check
+FqFmmax %>%
+shapiro_test(estimate) # Fails SW test of normality. Move to non-parametric
+
+## wilcox.test
+FqFmmax %>%
+wilcox_test(estimate ~ habitat)
+### FqFmmax is signifcantly higher in cryptic samples
+
+# AOV Ek
+Ek <- FqFmparams %>% filter(term == "Ek")
+
+## Normality check
+Ek %>%
+shapiro_test(estimate) # Fails SW test of normality. Move to non-parametric
+
+## wilcox.test
+Ek %>%
+wilcox_test(estimate ~ habitat)
+
+# Means and SD
+FqFmfitsum <- FqFmparams %>%
+  group_by(habitat, term) %>%
+  summarise(mean = mean(estimate),
+            sd = sd(estimate))
+
+FqFmfitsum %>%
+  pandoc.table()
+
+# Means of parameters and sd
+# --------------------------------------
+#  habitat    term      mean      sd    
+# --------- --------- -------- ---------
+#  cryptic     Ek      99.26     54.03  
+# 
+#  cryptic   FqFmmax   0.6611   0.04266 
+# 
+#  exposed     Ek      150.9     62.46  
+# 
+#  exposed   FqFmmax   0.5864   0.05241 
+# --------------------------------------
+```
+
+#### 3.7 Plot the variance of the paramters
+
+```{r}
+## Boxplot of FqFmmax
+FqFmparams %>%
+  filter(term == "FqFmmax") %>%
+  ggplot(aes(habitat, estimate)) + 
+  geom_boxplot() +
+  #facet_wrap(~species, scales = "free_x") +
+  theme(aspect.ratio = 1) +
+  ylab("Fq/Fm max")
+
+## Boxplot of Ek
+FqFmparams %>%
+  filter(term == "Ek") %>%
+  ggplot(aes(habitat, estimate)) + 
+  geom_boxplot() +
+  #facet_wrap(~species, scales = "free_x") +
+  theme(aspect.ratio = 1) +
+  ylab("Ek")
+```
+
+#### 3.8 Figure X Plot of mean FqFm and fits
+
+```{r}
+# Create new dataframe of the means
+PAM_means <- PAM %>%
+  group_by(genus, species, habitat, PAR) %>%
+  summarise(FqFm_mean = mean(FqFm),
+         rETR_mean = mean(rETR),
+         FqFm_sd = sd(FqFm),
+         rETR_sd = sd(rETR),
+         FqFm_sem = FqFm_sd/sqrt(n()),
+         rETR_sem = rETR_sd/sqrt(n())) %>%
+  ungroup() %>%
+  group_by(genus, species, habitat) %>%
+  mutate(PAMID = group_indices()) %>%
+  ungroup()
+
+# Fit to only the means for plotting
+FqFmfits_means <- PAM_means %>%
+  group_by(PAMID, genus, species, habitat) %>%
+  nest() %>%
+  mutate(fit = purrr::map(data, ~ nls_multstart(FqFm_mean ~ Hennige(FqFmmax, Ek, x = PAR),
+                     data = .x,
+                     iter = 250,
+                     start_lower = c(FqFmmax = 0.2, Ek = 5),
+                     start_upper = c(FqFmmax = 0.85, Ek = 1380),
+                     supp_errors = 'Y',
+                     convergence_count = 100,
+                     na.action = na.omit,
+                     lower = c(FqFmmax = 0.1, Ek = 5))))
+
+# create long PAR list for curve fitting
+new_preds_means <- PAM_means %>%
+  do(., data.frame(PAR = seq(min(.$PAR), max(.$PAR), length.out = 250), stringsAsFactors = FALSE))
+
+# augment predictions from fits
+FqFmpreds_means <- FqFmfits_means %>%
+  mutate(., p = map(fit, augment, newdata = new_preds_means)) %>%
+  unnest(p) %>%
+  rename(., FqFm = .fitted) %>%
+  ungroup()
+
+# Plot means
+ggplot() +
+  geom_line(aes(PAR, FqFm, group = PAMID, col = habitat), alpha = 0.5, FqFmpreds_means) +
+  geom_errorbar(aes(PAR, FqFm_mean, ymin = FqFm_mean - FqFm_sem, ymax = FqFm_mean + FqFm_sem), PAM_means) +
+  geom_point(aes(PAR, FqFm_mean, fill = habitat), shape = 21, size = 2, PAM_means) +
+  facet_wrap(~ species, labeller = labeller(.multi_line = FALSE)) +
+  labs(x = expression(paste("E (", mu,"mol photons m"^-2*" s"^-1*")")), 
+       y = 'Fq/Fm (dimensionless)') +
+  scale_colour_manual(values = c("black", "coral")) +
+  scale_fill_manual(values = c("black", "coral")) +
+  theme(legend.position = "right", aspect.ratio = 1)
+```
+
+#### 3.9 ETR vs E(PAR): Define the equation
+
+```{r}
+# Define the Jassby and Platt 1976 model
+JP <- function(x, a, Ek){
+  model <- a*Ek*tanh(x/Ek)
+  return(model)
+}
+```
+
+#### 3.10 Fit the ETR LC across groups
+
+```{r}
+ETRfits <- PAM %>%
+  group_by(., PAMID, genus, species, replicate, habitat) %>%
+  nest() %>%
+  mutate(fit = purrr::map(data, ~ nls_multstart(rETR ~ JP(x = PAR, a, Ek),
+                     data = .x,
+                     iter = 250,
+                     start_lower = c(a = 0.05, Ek = 5),
+                     start_upper = c(a = 0.9, Ek = 1700),
+                     supp_errors = 'Y',
+                     convergence_count = 100,
+                     na.action = na.omit,
+                     lower = c(a = 0.05, Ek = 1))))
+```
+
+#### 3.11 Tidy the fits and generate conf intervals of parameters
+
+```{r}
+# get summary
+ETRinfo <- ETRfits %>%
+  mutate(summary = map(fit, glance)) %>%
+  unnest(summary)
+# get params
+ETRparams <- ETRfits %>%
+  mutate(., p = map(fit, tidy)) %>%
+  unnest(p)
+# get confidence intervals
+ETRCI <- ETRfits %>%
+  mutate(., cis = map(fit, confint2),
+         cis = map(cis, data.frame)) %>%
+  unnest(cis) %>%
+  rename(., conf.low = X2.5.., conf.high = X97.5..) %>%
+  group_by(., PAMID) %>%
+  mutate(., term = c('a', 'Ek')) %>%
+  ungroup() %>%
+  select(., -data, -fit)
+# merge parameters and CI estimates
+ETRparams <- merge(ETRparams, ETRCI, by = intersect(names(ETRparams), names(ETRCI)))
+```
+
+#### 3.12 Visualise the ETR Ek fold change
+
+```{r}
+ETR_Ek_fold <- ETRparams %>%
+  filter(term == "Ek") %>%
+  group_by(habitat) %>%
+  mutate(n = row_number()) %>%
+  pivot_wider(names_from = habitat, values_from = c(estimate, std.error, statistic, p.value), id_cols = c(genus, species, n)) %>%
+  mutate(Ek_fold_change = (estimate_exposed - estimate_cryptic)/estimate_cryptic,
+         species = fct_reorder(species, Ek_fold_change, .fun = 'median'))
+
+ggplot(ETR_Ek_fold) +
+  geom_boxplot(aes(species, Ek_fold_change), fill = "grey90") +
+  theme(aspect.ratio = 1, axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.1))
+```
+
+#### 3.13 Check output for conversion and quality of fit
+
+```{r}
+dplyr::select(ETRinfo, isConv, PAMID, logLik, AIC, BIC, deviance, df.residual)
+```
+
+#### 3.14 Statistical tests of fit parameters using the rstatix library https://github.com/kassambara/rstatix
+
+```{r}
+# AOV FqFmmax
+a <- ETRparams %>% filter(term == "a")
+
+## Normality check
+a %>%
+shapiro_test(estimate) # Fails SW test of normality. Move to non-parametric
+
+## wilcox.test
+ETRparams %>%
+wilcox_test(estimate ~ habitat)
+### alpha is signifcantly different
+
+# AOV Ek
+Ek <- ETRparams %>% filter(term == "Ek")
+
+## Normality check
+Ek %>%
+shapiro_test(estimate) # Fails SW test of normality. Move to non-parametric
+
+## wilcox.test
+Ek %>%
+wilcox_test(estimate ~ habitat)
+# Ek is significantly different
+
+# Means and SD
+ETRfitsum <- ETRparams %>%
+  group_by(habitat, term) %>%
+  summarise(mean = mean(estimate),
+            sd = sd(estimate))
+
+ETRfitsum %>%
+  pandoc.table()
+
+# ----------------------------------
+#  habitat   term   mean      sd    
+# --------- ------ ------- ---------
+#  cryptic    a     0.487   0.06558 
+# 
+#  cryptic    Ek    148.8    68.31  
+# 
+#  exposed    a     0.525   0.1162  
+# 
+#  exposed    Ek    204.1    75.89  
+# ----------------------------------
+```
+
+#### 3.15 Plot the variance of the paramters
+
+```{r}
+## Barplot
+ETRparams %>%
+  filter(term == "a") %>%
+  ggplot(aes(habitat, estimate)) + 
+  geom_boxplot() +
+  facet_wrap(~species, scales = "free_x") +
+  theme(aspect.ratio = 1) +
+  ylab("Alpha (steepness of ETR)")
+
+ETRparams %>%
+  filter(term == "Ek") %>%
+  ggplot(aes(habitat, estimate)) + 
+  geom_boxplot() +
+  facet_wrap(~species, scales = "free_x") +
+  theme(aspect.ratio = 1) +
+  ylab("Ek")
+```
+
+#### 3.16 Plot figures of the means
+
+```{r}
+# Fit to the means
+ETRfits_means <- PAM_means %>%
+  group_by(., group_id, genus, species, habitat) %>%
+  nest() %>%
+  mutate(PAMID = group_indices(),
+         fit = purrr::map(data, ~ nls_multstart(rETR_mean ~ JP(x = PAR, a, Ek),
+                     data = .x,
+                     iter = 250,
+                     start_lower = c(a = 0.05, Ek = 5),
+                     start_upper = c(a = 0.9, Ek = 1700),
+                     supp_errors = 'Y',
+                     convergence_count = 100,
+                     na.action = na.omit,
+                     lower = c(a = 0.05, Ek = 1))))
+
+# create long PAR list
+new_preds_means <- PAM_means %>%
+  do(., data.frame(PAR = seq(min(.$PAR), max(.$PAR), length.out = 250), stringsAsFactors = FALSE))
+
+# create new predictions
+ETRpreds_means <- ETRfits_means %>%
+  mutate(., p = map(fit, augment, newdata = new_preds_means)) %>%
+  unnest(p) %>%
+  rename(rETR_mean = .fitted) %>%
+  ungroup()
+
+# Plot fits of the means
+ggplot() +
+  geom_line(aes(PAR, rETR_mean, group = PAMID, col = habitat), alpha = 0.5, ETRpreds_means) +
+  geom_errorbar(aes(PAR, rETR_mean, ymin = rETR_mean - rETR_sem, ymax = rETR_mean + rETR_sem), PAM_means) +
+  geom_point(aes(PAR, rETR_mean, fill = habitat), 
+             shape = 21, size = 2, PAM_means) +
+  facet_wrap(~ species, scales = "free_y") +
+  labs(x = expression(paste("E (", mu,"mol photons m"^-2*" s"^-1*")")), 
+       y = expression(paste('rETR (', mu,"mol m"^-2*" s"^-1*")"))) +
+  scale_fill_manual(values = c("black", "coral")) +
+  scale_colour_manual(values = c("black", "coral")) +
+  theme(legend.position = "right", aspect.ratio = 1)
+```
+
+## 4. Light dependant dynamic quenching
+
+#### 4.1 Figure X, Visualise 1 - C vs 1 - Q
+
+```{r}
+PAM %>%
+  ggplot(aes(onemC, onemQ, group = PAMID)) +
+  geom_path() +
+  geom_point(aes(fill = PAR, shape = habitat), size = 3) +
+  facet_wrap(~species, scales = "free_x") +
+  scale_fill_viridis_c(option = "plasma") +
+  #scale_fill_gradient(low = "black", high = "yellow", na.value = NA) +
+  scale_shape_manual(values = c(21, 22)) +
+  theme(aspect.ratio = 1)
+```
+
+#### 4.1 Set up the [1 - C] and [1 - Q] table with PAR normalised to Ek
+
+```{r}
+# Run to fit with Ek generated from rETR fitting
+dynamicQ <- PAM %>%
+  filter(!PAR == 0.001)
+
+ETREks <- ETRparams %>%
+  filter(term == "Ek") %>%
+  dplyr::select(-data, -fit, -std.error, -statistic, -p.value, -conf.low, -conf.high, -term) %>%
+  rename(Ek = estimate)
+
+dynamicQEk <- left_join(dynamicQ, ETREks, copy = TRUE) %>%
+  mutate(EnormEk = PAR/Ek)
+```
+
+#### 4.2 Define the equation
+
+```{r}
+# Define the one-phase decay equation as in Nitschke et al 2018 Frontiers in Marine Biology
+opd <- function(Qzero, plat, K, x) {
+  model <- ((Qzero - plat)*exp(-K*x) + plat)
+  return(model)
+}
+```
+
+#### 4.3 Fit the [1 - C] curve across groups
+
+```{r}
+onemCfits <- dynamicQEk %>%
+  group_by(., PAMID, genus, species, replicate, site, habitat) %>%
+  nest() %>%
+  mutate(fit = purrr::map(data, ~ nls_multstart(onemC ~ opd(Qzero, plat, K, x = EnormEk),
+                     data = .x,
+                     iter = 250,
+                     start_lower = c(Qzero = 0.1, plat = 0.01, K = 0.05),
+                     start_upper = c(Qzero = 1.1, plat = 0.9, K = 0.8),
+                     supp_errors = 'Y',
+                     convergence_count = 100,
+                     na.action = na.omit,
+                     lower = c(Qzero = 0.05, plat = 0.001, K = 0.04))))
+```
+
+#### 4.4 Tidy the fits of [1 - C], generate conf intervals of parameters
+
+```{r}
+# get summary
+onemCinfo <- onemCfits %>%
+  mutate(summary = map(fit, glance)) %>%
+  unnest(summary)
+
+# get params
+onemCparams <- onemCfits %>%
+  mutate(., p = map(fit, tidy)) %>%
+  unnest(p)
+
+# get confidence intervals
+onemCCI <- onemCfits %>%
+  mutate(., cis = map(fit, confint2),
+         cis = map(cis, data.frame)) %>%
+  unnest(cis) %>%
+  rename(., conf.low = X2.5.., conf.high = X97.5..) %>%
+  group_by(., PAMID) %>%
+  mutate(., term = c('Qzero', 'plat', 'K')) %>%
+  ungroup() %>%
+  select(., -data, -fit)
+
+# merge parameters and CI estimates
+onemCparams <- merge(onemCparams, onemCCI, by = intersect(names(onemCparams), names(onemCCI)))
+```
+
+#### 4.5 Fit the [1 - Q] curves across groups
+
+```{r}
+onemQfits <- dynamicQEk %>%
+  group_by(., PAMID, genus, species, replicate, site, habitat) %>%
+  nest() %>%
+  mutate(fit = purrr::map(data, ~ nls_multstart(onemQ ~ opd(Qzero, plat, K, x = EnormEk),
+                     data = .x,
+                     iter = 250,
+                     start_lower = c(Qzero = 0.1, plat = 0.01, K = 0.05),
+                     start_upper = c(Qzero = 1.1, plat = 0.9, K = 0.8),
+                     supp_errors = 'Y',
+                     convergence_count = 100,
+                     na.action = na.omit,
+                     lower = c(Qzero = 0.05, plat = 0.001, K = 0.04))))
+```
+
+#### 4.6 Tidy the fits of [1 - Q], generate conf intervals of parameters, predict new data
+
+```{r}
+# get summary
+onemQinfo <- onemQfits %>%
+  mutate(summary = map(fit, glance)) %>%
+  unnest(summary)
+
+# get params
+onemQparams <- onemQfits %>%
+  mutate(., p = map(fit, tidy)) %>%
+  unnest(p)
+
+# get confidence intervals
+onemQCI <- onemQfits %>%
+  mutate(., cis = map(fit, confint2),
+         cis = map(cis, data.frame)) %>%
+  unnest(cis) %>%
+  rename(., conf.low = X2.5.., conf.high = X97.5..) %>%
+  group_by(., PAMID) %>%
+  mutate(., term = c('Qzero', 'plat', 'K')) %>%
+  ungroup() %>%
+  select(., -data, -fit)
+
+# merge parameters and CI estimates
+onemQparams <- merge(onemCparams, onemCCI, by = intersect(names(onemCparams), names(onemCCI)))
+```
+
+#### 4.7 Fit and visualise the 1 - C & 1 - Q means
+
+```{r}
+# Means
+dynamicQEk_means <- dynamicQEk %>%
+  group_by(genus, species, habitat, PAR) %>%
+  summarise(EnormEk_mean = mean(EnormEk),
+            onemC_mean = mean(onemC),
+         onemQ_mean = mean(onemQ),
+         onemC_sd = sd(onemC),
+         onemQ_sd = sd(onemQ),
+         onemC_sem = onemC_sd/sqrt(n()),
+         onemQ_sem = onemQ_sd/sqrt(n())) %>%
+    mutate(PAMID = group_indices()) %>%
+  ungroup()
+
+# Fit to the means
+onemCfits_means <- dynamicQEk_means %>%
+  group_by(PAMID, genus, species, habitat) %>%
+  nest() %>%
+  mutate(fit = purrr::map(data, ~ nls_multstart(onemC_mean ~ opd(Qzero, plat, K, x = EnormEk_mean),
+                     data = .x,
+                     iter = 250,
+                     start_lower = c(Qzero = 0.1, plat = 0.01, K = 0.05),
+                     start_upper = c(Qzero = 1.1, plat = 0.9, K = 0.8),
+                     supp_errors = 'Y',
+                     convergence_count = 100,
+                     na.action = na.omit,
+                     lower = c(Qzero = 0.05, plat = 0.001, K = 0.04))))
+
+onemCinfo <- onemCfits_means %>%
+  mutate(summary = map(fit, glance)) %>%
+  unnest(summary)
+
+Q_preds <- dynamicQEk_means %>%
+  do(., data.frame(EnormEk_mean = seq(min(.$EnormEk_mean), max(.$EnormEk_mean), length.out = 1000), stringsAsFactors = FALSE))
+
+# get max min PAR for each curve
+Qmax_min <- group_by(dynamicQEk_means, PAMID) %>%
+  summarise(., min_EnormEk = min(EnormEk_mean), max_EnormEk = max(EnormEk_mean)) %>%
+  ungroup()
+
+# augment predictions from fits
+onemCpreds_means <- onemCfits_means %>%
+  mutate(., p = map(fit, augment, newdata = Q_preds)) %>%
+  unnest(p) %>%
+  merge(., Qmax_min, by = 'PAMID') %>%
+  group_by(., PAMID) %>%
+  filter(., EnormEk_mean > unique(min_EnormEk) & EnormEk_mean < unique(max_EnormEk)) %>%
+  rename(., onemC = .fitted) %>%
+  ungroup()
+
+# Fit to the means
+onemQfits_means <- dynamicQEk_means %>%
+  group_by(PAMID, genus, species, habitat) %>%
+  nest() %>%
+  mutate(fit = purrr::map(data, ~ nls_multstart(onemQ_mean ~ opd(Qzero, plat, K, x = EnormEk_mean),
+                     data = .x,
+                     iter = 250,
+                     start_lower = c(Qzero = 0.1, plat = 0.01, K = 0.05),
+                     start_upper = c(Qzero = 1.1, plat = 0.9, K = 0.8),
+                     supp_errors = 'Y',
+                     convergence_count = 100,
+                     na.action = na.omit,
+                     lower = c(Qzero = 0.05, plat = 0.001, K = 0.04))))
+
+# augment predictions from fits
+onemQpreds_means <- onemQfits_means %>%
+  mutate(., p = map(fit, augment, newdata = Q_preds)) %>%
+  unnest(p) %>%
+  merge(., Qmax_min, by = 'PAMID') %>%
+  group_by(., PAMID) %>%
+  filter(., EnormEk_mean > unique(min_EnormEk) & EnormEk_mean < unique(max_EnormEk)) %>%
+  rename(., onemQ = .fitted) %>%
+  ungroup()
+
+# Plot means
+ggplot() +
+  geom_path(aes(EnormEk_mean, onemC, group = PAMID, col = habitat), alpha = 0.5, onemCpreds_means) +
+  geom_point(aes(EnormEk_mean, onemC_mean, fill = habitat), shape = 21, size = 2, dynamicQEk_means) +
+  geom_path(aes(EnormEk_mean, onemQ, group = PAMID, col = habitat), alpha = 0.5, onemQpreds_means) +
+  geom_point(aes(EnormEk_mean, onemQ_mean, fill = habitat), shape = 22, size = 2, dynamicQEk_means) +
+  geom_vline(xintercept = 1) + # E/Ek = 1 the minimum saturating irradiance
+  facet_wrap(~ species) +
+  labs(x = expression(paste("E/E"[k]*" (dimensionless)")), 
+       y = expression(paste("[1 - C] (circles) or [1 - Q] (squares)"))) +
+  theme(legend.position = "right", aspect.ratio = 1) +
+  scale_colour_manual(values = c("black", "orange")) +
+  scale_fill_manual(values = c("black", "orange"))
+```
+
+#### 4.8 [1 - C] vs [1 - Q] at E/Ek = 1
+
+```{r}
+onemCEEk1 <- onemCpreds %>%
+    group_by(PAMID) %>%
+    slice(which.min(abs(EnormEk - 2)))
+
+onemQEEk1 <- onemQpreds %>%
+    group_by(PAMID) %>%
+    slice(which.min(abs(EnormEk - 2)))
+
+dynamQEEk1 <- cbind(onemCEEk1, onemQEEk1)
+
+dynamQEEk1 %>%
+  group_by(genus, species, habitat) %>%
+  summarise(onemC_mean = mean(onemC),
+            onemC_sd = sd(onemC),
+            onemC_se = onemC_sd/sqrt(n()),
+            onemQ_mean = mean(onemQ),
+            onemQ_sd = sd(onemQ),
+            onemQ_se = onemQ_sd/sqrt(n())) %>%
+  mutate(label = ifelse(habitat == "exposed", paste0(substr(genus, start = 1, stop = 1), ".", " ", sapply(strsplit(species, split = " "), tail, 1L)), "")) %>%
+  ggplot(aes(onemC_mean, onemQ_mean, group = species, label = label)) +
+  geom_line() +
+  geom_label_repel(segment.colour = "grey50") +
+  geom_errorbar(aes(onemC_mean, onemQ_mean, ymin = onemQ_mean - onemQ_se, ymax = onemQ_mean + onemQ_se)) +
+  geom_errorbarh(aes(onemC_mean, onemQ_mean, xmin = onemC_mean - onemC_se, xmax = onemC_mean + onemC_se)) +
+  geom_point(aes(fill = species, shape = habitat), size = 4, alpha = 0.8) +
+  geom_abline(intercept = 0, slope = 1) +
+  scale_shape_manual(values = c(21, 22)) +
+  coord_cartesian(ylim = c(0.1, 1), xlim = c(0.1, 1)) +
+  theme(aspect.ratio = 1) +
+  guides(fill = guide_legend(override.aes = list(shape = 21)))
+```
+
+# --------------------------------------------------------------------------------------- Development below
+
+```{r}
+coeff <- read_csv("hochberg_2006_coefficients.csv") %>%
+  filter(Band_number != "C") %>%
+  type_convert()
+
+wave_bands <- read_csv("hochberg_2006_wavebands.csv") %>%
+  mutate(band_center_round = round(Band_center_nm)) %>%
+  left_join(., coeff)
+
+test <- specslong %>%
+  filter(wl %in% wave_bands$band_center_round) %>%
+  left_join(., wave_bands, by = c("wl" = "band_center_round")) %>%
+  mutate(reflect_coeff = (reflectance/100) * chl_a) %>%
+  pivot_wider(names_from = wl, values_from = reflect_coeff, names_prefix = "Re_", id_cols = c(PAMID, genus, species, site, habitat, replicate)) %>%
+  mutate(chl_a_ug_cm2 = Re_404 +  Re_413 +  Re_423 +  Re_433 +  Re_442 +  Re_452 +  Re_462 +  Re_471 +  Re_481 +  Re_491 +  Re_500 +  Re_510 +  Re_520 +  Re_529 +  Re_539 +  Re_549 +  Re_558 +  Re_568 +  Re_578 +  Re_588 +  Re_597 +  Re_607 +  Re_616 +  Re_626 +  Re_636 +  Re_646 +  Re_655 +  Re_665 +  Re_674 +  Re_684 +  Re_404 + 38.81)
+```

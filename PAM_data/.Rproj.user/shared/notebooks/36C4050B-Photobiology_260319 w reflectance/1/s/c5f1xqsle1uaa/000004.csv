@@ -1,0 +1,7 @@
+"0","spec_summary <- summary(specs) %>%
+  tibble::rownames_to_column(var = ""sampleID"") %>%
+  pivot_longer(-sampleID, names_to = ""variable"") %>%
+  left_join(., map)
+"
+"2","Joining, by = ""sampleID""
+"

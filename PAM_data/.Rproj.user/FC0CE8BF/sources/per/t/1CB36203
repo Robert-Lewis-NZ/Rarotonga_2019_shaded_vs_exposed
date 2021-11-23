@@ -1,0 +1,33 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1585785862741.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "1CB36203",
+    "lastKnownWriteTime" : 2314971551955311648,
+    "last_content_update" : 1585785862741,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "cacheKey" : "F478D135",
+        "caption" : "FqFmparams",
+        "contentUrl" : "grid_resource/gridviewer.html?env=&obj=FqFmparams&cache_key=F478D135",
+        "displayedObservations" : "400",
+        "environment" : "",
+        "expression" : "FqFmparams",
+        "object" : "FqFmparams",
+        "preview" : "0",
+        "totalObservations" : "400",
+        "variables" : "14"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 10,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_dataframe"
+}

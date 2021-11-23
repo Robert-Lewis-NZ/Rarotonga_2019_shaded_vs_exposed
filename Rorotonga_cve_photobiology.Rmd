@@ -1,0 +1,891 @@
+---
+title: "Rarotonga shaded vs exposed Photobiology"
+author: "Rob Lewis"
+date: "26/04/2021"
+output: html_document
+---
+# libraries
+
+```{r}
+library(tidyverse)
+library(forcats)
+library(lubridate)
+library(broom)
+library(nls.multstart)
+library(nlstools)
+library(car)
+library(pavo)
+library(ggspectra)
+library(photobiology)
+library(photobiologyWavebands)
+library(photobiologyInOut)
+library(cowplot)
+unnest <- unnest_legacy
+
+
+
+```
+
+#Load objects
+```{r}
+PAM <- readRDS("PAM.RDS")
+
+FqFmparams <- readRDS("FqFmparams_no_PAR_adjust.RDS")
+
+onemC_max_EnormEk <- readRDS("onemC_max_EnormEk.rds") %>%
+  filter(sampleID != "C96" & sampleID != "E96" & sampleID != "C49" & sampleID != "E49")
+
+onemQ_max_EnormEk <- readRDS("onemQ_max_EnormEk.rds") %>%
+  filter(sampleID != "C96" & sampleID != "E96" & sampleID != "C49" & sampleID != "E49")
+
+dynamQ_max_EnormEk <- readRDS("dynamQ_max_EnormEk.RDS")
+
+total_brightness <- readRDS("total_brightness.rds")
+
+```
+
+# Read "PAM" excel file
+
+```{r}
+PAM <- read_csv("PAM_data/PAM.csv", col_names = TRUE) %>%
+  group_by(PAMID) %>%
+  mutate(date = dmy(time_date),
+         Fm = ifelse(Fm <= F, F+1, Fm),
+         PAR = ifelse(PAR == 0, 0.001, PAR),
+         FqFm = (Fm - F) / Fm,
+         rETR = FqFm * PAR,
+         Fo.p = first(F) / (first(FqFm) + (first(F) / Fm)),
+         onemC = (Fm - F) / (Fm - Fo.p),
+         Fv.p = Fm - Fo.p,
+         onemQ = (Fv.p/Fm) / first(FqFm)) %>%
+  ungroup() %>%
+  filter(sampleID != "C96" & sampleID != "E96" & sampleID != "C49" & sampleID != "E49")
+
+saveRDS(PAM, "PAM.RDS")
+```
+
+
+# Load Hennige equation
+
+```{r}
+Hennige <- function(FqFmmax, Ek, x){
+  model <- ((FqFmmax * Ek) * (1-exp(-x/Ek)))/x 
+  return(model)
+}
+```
+
+# Fit Fq/Fm data with Hennige equation for each replicate
+
+```{r}
+FqFmfits <- PAM %>% 
+  group_by(PAMID, genus, species, habitat, replicate, sampleID) %>%
+  nest() %>% 
+  mutate(fit = map(data, ~ nls_multstart(FqFm ~ Hennige(FqFmmax, Ek, x = PAR),
+                                     data = .x, 
+                                     iter = 250, 
+                                     start_lower = c(FqFmmax = 0.2, Ek = 5),
+                                     start_upper = c(FqFmmax = 0.85, Ek = 1409),
+                                     supp_errors = "Y",
+                                     convergence_count = 100,
+                                     na.action = na.omit, 
+                                     lower = c(FqFmmax = 0.1, Ek = 5))))
+```
+
+```{r}
+FqFminfo <- FqFmfits %>%
+  unnest(fit %>% map(glance))
+
+FqFmparams <- FqFmfits %>% 
+  unnest(fit %>% map(tidy))
+
+FqFmCI <- FqFmfits %>%
+  unnest(fit %>% map(~ confint2(.x, level = 0.95) %>% data.frame() %>% rename(conf.low = X2.5.., conf.high = X97.5..))) %>% 
+  group_by(PAMID) %>%
+  mutate(term = c("FqFmmax", "Ek")) %>% 
+  ungroup()
+
+FqFmparams <- left_join(FqFmparams, FqFmCI)
+
+new_preds <- PAM %>% 
+  do(data.frame(PAR = seq(min(.$PAR), max(.$PAR),length.out = 250), stringsAsFactors = FALSE))
+
+FqFmpreds <- FqFmfits %>% 
+  unnest(fit %>% map(augment, newdata = new_preds)) %>% 
+  rename(FqFm = .fitted)
+
+saveRDS(FqFmparams, "FqFmparams_no_PAR_adjust.RDS")
+```
+
+# Plot Fq/Fm model fits
+
+```{r}
+ggplot() + 
+  geom_point(aes(PAR, FqFm, fill = habitat), shape = 21, size = 2, PAM) + 
+  geom_line(aes(PAR, FqFm, group = PAMID, col = habitat, linetype = factor(replicate)), FqFmpreds) + 
+  facet_wrap(~ species)
+```
+## (S 2.1) plot intra-colony Fq/Fmmax fold diff vs species
+```{r}
+
+FqFmmax_fold_diff <- FqFmparams %>%
+  filter(term == "FqFmmax") %>%
+  group_by(habitat) %>%
+  mutate(n = row_number()) %>%
+  pivot_wider(names_from = habitat, values_from = c(estimate, std.error, statistic, p.value), id_cols = c(genus, species, n)) %>%
+  mutate(FqFmmax_fold_change = (estimate_cryptic - estimate_exposed) / estimate_exposed) %>%
+  ggplot() +
+  geom_boxplot(aes(reorder(species, FqFmmax_fold_change, mean),  FqFmmax_fold_change)) +
+  theme(aspect.ratio = 1) +
+  ylab("Intra-colony Fq/Fm max fold difference") +
+  xlab("Species") +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
+  theme(axis.text.x = element_text(color = "black", size = 12, angle = 90, hjust = 1, vjust = .5, face = "italic"),
+        axis.text.y = element_text(color = "black", size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"),  
+        axis.title.x = element_text(color = "black", size = 14, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text(color = "black", size = 14, angle = 90, hjust = .5, vjust = .5, face = "plain"))
+
+# (shaded estimate - exposed estimate)/exposed estimate)
+
+#ggsave("S1_FqFmmax_fold_diff.pdf", plot = FqFmmax_fold_diff, units = "in", height = 7, width = 10)
+```
+
+## (S 2.2) plot intra-colony Ek fold diff vs Species
+```{r}
+S2_Ek_fold_diff <- FqFmparams %>%
+  filter(term == "Ek") %>%
+  group_by(habitat) %>%
+  mutate(n = row_number()) %>%
+  pivot_wider(names_from = habitat, values_from = c(estimate, std.error, statistic, p.value), id_cols = c(genus, species, n)) %>%
+  mutate(Ek_fold_change = (estimate_exposed - estimate_cryptic) / estimate_cryptic) %>%
+  ggplot() +
+  geom_boxplot(aes(reorder(species, Ek_fold_change, mean),  Ek_fold_change)) +
+  theme(aspect.ratio = 1) +
+  ylab("Intra-colony Ek fold difference") +
+  xlab("Species") +
+  theme_bw() + 
+  theme(panel.border = element_rect(fill = NULL, colour = "black"), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
+  theme(axis.text.x = element_text(color = "black", size = 12, angle = 90, hjust = 1, vjust = .5, face = "italic"),
+        axis.text.y = element_text(color = "black", size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"),  
+        axis.title.x = element_text(color = "black", size = 14, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text(color = "black", size = 14, angle = 90, hjust = .5, vjust = .5, face = "plain"))
+
+#ggsave("S2_Ek_fold_diff.pdf", plot = S2_Ek_fold_diff, units = "in", height = 7, width = 10)
+```
+
+
+
+```{r}
+# Jassby and Platt 1976 model
+JP <- function(x, a, Ek){
+  model <- a*Ek*tanh(x/Ek)
+  return(model)
+}
+```
+
+```{r}
+ETRfits <- PAM %>% 
+  group_by(PAMID, habitat, genus, species, replicate) %>%
+  nest() %>%
+  mutate(fit = map(data, ~ nls_multstart(rETR ~ JP(x = PAR, a, Ek),
+                                    data = .x, 
+                                     iter = 250, 
+                                     start_lower = c(a = 0.05, Ek = 5),
+                                     start_upper = c(a = 0.95, Ek = 1409),
+                                     supp_errors = "Y",
+                                     convergence_count = 100,
+                                     na.action = na.omit, 
+                                     lower = c(a = 0.05, Ek = 5))))
+```
+
+```{r}
+ETRinfo <- ETRfits %>%
+  unnest(fit %>% map(glance))
+
+ETRparams <- ETRfits %>% 
+  unnest(fit %>% map(tidy))
+
+ETRCI <- ETRfits %>%
+  unnest(fit %>% map(~ confint2(.x, level = 0.95) %>% data.frame() %>% rename(conf.low = X2.5.., conf.high = X97.5..))) %>% 
+  group_by(PAMID) %>%
+  mutate(term = c("a", "Ek")) %>% 
+  ungroup()
+
+ETRparams <- left_join(ETRparams, ETRCI)
+
+new_preds <- PAM %>% 
+  do(data.frame(PAR = seq(min(.$PAR),max(.$PAR),length.out = 250),stringsAsFactors = FALSE))
+
+ETRpreds <- ETRfits %>% 
+  unnest(fit %>% map(augment, newdata = new_preds)) %>% 
+  rename(rETR = .fitted)
+```
+
+```{r}
+ggplot() + 
+  geom_point(aes(PAR, rETR, fill = habitat), shape = 21, size = 2, PAM) + 
+  geom_line(aes(PAR, rETR, group = PAMID, col = habitat, linetype = factor(replicate)), ETRpreds) + 
+  facet_wrap(~ species)
+
+```
+
+
+
+```{r}
+ETR_Ek_fold <- ETRparams %>%
+  filter(term == "Ek") %>%
+  group_by(habitat) %>%
+  mutate(n = row_number()) %>%
+  pivot_wider(names_from = habitat, values_from = c(estimate, std.error, statistic, p.value), id_cols = c(genus, species, n)) %>%
+  mutate(Ek_fold_change = (estimate_exposed - estimate_cryptic)/estimate_cryptic, 
+         species = fct_reorder(species, Ek_fold_change, .fun = "median"))
+
+ggplot(ETR_Ek_fold) + 
+  geom_boxplot(aes(species, Ek_fold_change)) +
+  theme(aspect.ratio = 1, axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.1))
+```
+
+#Fq/Fm_max summary and one-way ANOVA
+
+```{r}
+FqFm_max_summary <- FqFmparams %>%
+  filter(term == "FqFmmax")
+
+results_FqFmmax_ANOVA <- aov(estimate ~ habitat, data = FqFm_max_summary)
+
+summary(results_FqFmmax_ANOVA)
+
+#               Df Sum Sq Mean Sq F value Pr(>F)    
+# habitat       1 0.2788 0.27880   122.1 <2e-16 ***
+# Residuals   198 0.4521 0.00228 
+
+## Homogeneity of variances
+
+plot(results_FqFmmax_ANOVA, 1)
+
+
+leveneTest(estimate ~ habitat, data = FqFm_max_summary)
+
+#           Df F value  Pr(>F)  
+#   group   1  4.9651 0.02699 *
+#          198  
+
+# variance across groups is significantly different -- non-parametric test required
+
+kruskal.test(estimate ~ habitat, data = FqFm_max_summary)
+
+#   Kruskal-Wallis chi-squared = 81.776, df = 1, p-value < 2.2e-16
+
+
+FqFm_max_summary_plot <- FqFmparams %>%
+  filter(term == "FqFmmax") %>%
+  ggplot() +
+  geom_boxplot(aes(habitat, estimate)) +
+  theme(aspect.ratio = 1, axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.1)) +
+  ylab("Fq/Fm max") +
+  xlab("Habitat") + 
+  scale_x_discrete(labels = c("shaded", "exposed")) +
+  theme_bw() + 
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
+  theme(axis.text.x = element_text(color = "black", size = 12, angle = 0, hjust = .5, vjust = .5, face = "plain"),
+        axis.text.y = element_text(color = "black", size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"),  
+        axis.title.x = element_text(color = "black", size = 14, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text(color = "black", size = 14, angle = 90, hjust = .5, vjust = .5, face = "plain"),
+        legend.text = element_text(size = 12))
+
+FqFm_max_summary_plot
+
+
+```
+
+
+#Ek summary and one-way ANOVA
+
+```{r}
+Ek_summary <- ETRparams %>%
+  filter(term == "Ek")
+
+  
+results_Ek_ANOVA <- aov(estimate ~ habitat, data = Ek_summary)
+
+summary(results_Ek_ANOVA)
+
+# Homogeneity of variances
+plot(results_Ek_ANOVA, 1)
+
+
+leveneTest(estimate ~ habitat, data = Ek_summary)
+
+#       Df F value Pr(>F)
+#group   1  2.6605 0.1045
+#      198 
+
+# variance across groups is not significantly different  
+
+# Normality
+
+plot(results_Ek_ANOVA, 2)
+
+#Shapiro-Wilk test
+
+residuals_Ek_ANOVA <- residuals(object = results_Ek_ANOVA)
+
+shapiro.test(x = residuals_Ek_ANOVA)
+
+# data:  ANOVA_residuals
+# W = 0.91047, p-value = 1.231e-09
+
+# normality violated -- non-parametric test required
+
+kruskal.test(estimate ~ habitat, data = Ek_summary)
+
+
+	#   Kruskal-Wallis rank sum test
+
+#   data:  estimate by habitat
+#   Kruskal-Wallis chi-squared = 68.407, df = 1, p-value < 2.2e-16
+
+Ek_summary_plot <- FqFmparams %>%
+  filter(term == "Ek") %>%
+  ggplot() +
+  geom_boxplot(aes(habitat,  estimate)) +
+  theme(aspect.ratio = 1, axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.1)) +
+  ylab("Ek") +
+  xlab("Habitat") + 
+  scale_x_discrete(labels = c("shaded", "exposed")) +
+  theme_bw() + 
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
+  theme(axis.text.x = element_text(color = "black", size = 12, angle = 0, hjust = .5, vjust = .5, face = "plain"),
+        axis.text.y = element_text(color = "black", size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"),  
+        axis.title.x = element_text(color = "black", size = 14, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text(color = "black", size = 14, angle = 90, hjust = .5, vjust = .5, face = "plain"),
+        legend.text = element_text(size = 12))
+
+Ek_summary_plot
+```
+
+
+```{r}
+ETR_Ek_fold <- ETRparams %>%
+  filter(term == "Ek") %>%
+  group_by(habitat) %>%
+  mutate(n = row_number()) %>%
+  pivot_wider(names_from = habitat, values_from = c(estimate, std.error, statistic, p.value), id_cols = c(genus, species, n)) %>%
+  mutate(Ek_fold_change = (estimate_exposed - estimate_cryptic)/estimate_cryptic)
+
+ggplot(ETR_Ek_fold) + 
+  geom_boxplot(aes(species, Ek_fold_change))
+  theme(aspect.ratio = 1, axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.1))
+
+
+```
+
+```{r}
+dynamicQ <- PAM %>%
+  filter(PAR != 0.001)
+
+ETREks <- ETRparams %>%
+  filter(term == "Ek")
+
+dynamicQEk <- left_join(dynamicQ, ETREks) %>%
+  mutate(EnormEk = PAR/estimate)
+```
+
+```{r}
+OPD <- function(q0, plat, K, x) {
+  model <- ((q0 - plat) * exp(-K * x) + plat)
+  return(model)
+}
+```
+
+```{r}
+onemCfits <- dynamicQEk %>% 
+  group_by(PAMID, habitat, genus, species, replicate, sampleID) %>%
+  nest() %>%
+  mutate(fit = map(data, ~ nls_multstart(onemC ~ OPD(x = EnormEk, q0, plat, K),
+                                    data = .x, 
+                                     iter = 250, 
+                                     start_lower = c(q0 = 0.1, plat = 0.01, K = 0.05),
+                                     start_upper = c(q0 = 1, plat = 0.9, K = 0.8),
+                                     supp_errors = "Y",
+                                     convergence_count = 100,
+                                     na.action = na.omit, 
+                                     lower = c(q0 = 0.05, plat = 0.001, K = 0.04))))
+```
+
+```{r}
+onemCinfo <- onemCfits %>%
+  unnest(fit %>% map(glance))
+
+onemCparams <- onemCfits %>% 
+  unnest(fit %>% map(tidy))
+
+onemCCI <- onemCfits %>%
+  unnest(fit %>% map(~ confint2(.x, level = 0.95) %>% data.frame() %>% rename(conf.low = X2.5.., conf.high = X97.5..))) %>% 
+  group_by(PAMID) %>%
+  mutate(term = c("q0", "plat", "K")) %>% 
+  ungroup()
+
+onemCparams <- left_join(onemCparams, onemCCI)
+
+Q_preds <- dynamicQEk %>% 
+  do(data.frame(EnormEk = seq(min(.$EnormEk),max(.$EnormEk),length.out = 1000),stringsAsFactors = FALSE))
+
+Qmax_min <- dynamicQEk %>%
+  group_by(PAMID) %>%
+  summarise(min_EnormEk = min(EnormEk), max_EnormEk = max(EnormEk))
+
+onemCpreds <- onemCfits %>% 
+  unnest(fit %>% map(augment, newdata = Q_preds)) %>% 
+  left_join(., Qmax_min) %>%
+  group_by(PAMID) %>%
+  filter(EnormEk > unique(min_EnormEk) & EnormEk < unique(max_EnormEk)) %>%
+  rename(onemC = .fitted) %>%
+  ungroup()
+```
+
+```{r}
+onemQfits <- dynamicQEk %>% 
+  group_by(PAMID, habitat, genus, species, replicate, sampleID) %>%
+  nest() %>%
+  mutate(fit = map(data, ~ nls_multstart(onemQ ~ OPD(x = EnormEk, q0, plat, K),
+                                    data = .x, 
+                                     iter = 250, 
+                                     start_lower = c(q0 = 0.1, plat = 0.01, K = 0.05),
+                                     start_upper = c(q0 = 1, plat = 0.9, K = 0.8),
+                                     supp_errors = "Y",
+                                     convergence_count = 100,
+                                     na.action = na.omit, 
+                                     lower = c(q0 = 0.05, plat = 0.001, K = 0.04))))
+```
+
+```{r}
+onemQinfo <- onemQfits %>%
+  unnest(fit %>% map(glance))
+
+onemQparams <- onemQfits %>% 
+  unnest(fit %>% map(tidy))
+
+onemQCI <- onemQfits %>%
+  unnest(fit %>% map(~ confint2(.x, level = 0.95) %>% data.frame() %>% rename(conf.low = X2.5.., conf.high = X97.5..))) %>% 
+  group_by(PAMID) %>%
+  mutate(term = c("q0", "plat", "K")) %>% 
+  ungroup()
+
+onemQparams <- left_join(onemQparams, onemQCI)
+
+Q_preds <- dynamicQEk %>% 
+  do(data.frame(EnormEk = seq(min(.$EnormEk),max(.$EnormEk),length.out = 1000),stringsAsFactors = FALSE))
+
+Qmax_min <- dynamicQEk %>%
+  group_by(PAMID) %>%
+  summarise(min_EnormEk = min(EnormEk), max_EnormEk = max(EnormEk))
+
+onemQpreds <- onemQfits %>% 
+  unnest(fit %>% map(augment, newdata = Q_preds)) %>% 
+  left_join(., Qmax_min) %>%
+  group_by(PAMID) %>%
+  filter(EnormEk > unique(min_EnormEk) & EnormEk < unique(max_EnormEk)) %>%
+  rename(onemQ = .fitted) %>%
+  ungroup()
+```
+
+```{r}
+ggplot() +
+  geom_line(aes(EnormEk, onemC, group = PAMID, col = species), onemCpreds) + 
+  geom_point(aes(EnormEk, onemC, col = species), dynamicQEk) + 
+  geom_line(aes(EnormEk, onemQ, group = PAMID, col = species), onemQpreds) + 
+  geom_point(aes(EnormEk, onemQ, col = species), shape = 17, dynamicQEk) + 
+  facet_wrap(~ habitat) +
+  theme(aspect.ratio = 1)
+
+```
+
+```{r}
+onemCEEK1 <- onemCpreds %>%
+  group_by(PAMID) %>%
+  slice(which.min(abs(EnormEk - 1)))
+
+onemQEEK1 <- onemQpreds %>%
+  group_by(PAMID) %>%
+  slice(which.min(abs(EnormEk - 1)))
+
+dynamQEEk1 <- left_join(onemCEEK1, onemQEEK1)
+
+dynamQEEk1 %>%
+  group_by(genus, species, habitat) %>%
+  summarise(onemC_mean = mean(onemC),
+            onemQ_mean = mean(onemQ)) %>%
+  ggplot(aes(onemC_mean, onemQ_mean, group = species)) +
+  geom_line() +
+  geom_point(aes(fill = species, shape = habitat), size = 4) +
+  geom_abline(intercept = 0, slope = 1) +
+  scale_shape_manual(values = c(21, 22)) +
+  coord_cartesian(ylim = c(0.4, 1), xlim = c(0.4, 1)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21)))
+
+```
+# 1-C vs 1-Q summary
+
+```{r}
+onemC_max_EnormEk <- onemCpreds %>%
+  group_by(PAMID) %>%
+  slice(which.max(abs(EnormEk)))
+
+onemQ_max_EnormEk <- onemQpreds %>%
+  group_by(PAMID) %>%
+  slice(which.max(abs(EnormEk)))
+
+dynamQ_max_EnormEk <- left_join(onemC_max_EnormEk, onemQ_max_EnormEk)
+
+
+dynamQ_CI <- dynamQ_max_EnormEk %>%
+ group_by(habitat) %>%
+  mutate(onemC_sd = sd(onemC), onemQ_sd = sd(onemQ),
+         onemC_me = qnorm(.975)*(onemC_sd/sqrt(98)), onemQ_me = qnorm(.975)*(onemQ_sd/sqrt(98))) %>%
+  select(habitat, onemC_me, onemQ_me) %>%
+  distinct()
+  
+
+dynamQ_max_EnormEk_plot <- dynamQ_max_EnormEk %>%
+  group_by(habitat) %>%
+  summarise(onemC_mean = mean(onemC),
+            onemQ_mean = mean(onemQ)) %>%
+  left_join(dynamQ_CI, dynamQ_max_EnormEk, by = "habitat") %>%
+  ggplot(aes(onemC_mean, onemQ_mean)) +
+  geom_line() +
+  geom_abline(intercept = 0, slope = 1) +
+  coord_cartesian(ylim = c(0.0, 1), xlim = c(0.0, .5)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21))) +
+  ylab("1 - Q mean") +
+  xlab("1 - C mean") +
+  labs(col = "Habitat") +
+  theme_bw() +
+  theme(axis.text.x = element_text(color = "black", size = 12, angle = 0, hjust = .5, vjust = .5, face = "plain"),
+        axis.text.y = element_text(color = "black", size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"),  
+        axis.title.x = element_text(color = "black", size = 14, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text(color = "black", size = 14, angle = 90, hjust = .5, vjust = .5, face = "plain"),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14)) +
+  geom_errorbar(aes(ymin = onemQ_mean - onemQ_me, ymax = onemQ_mean + onemQ_me), width = 0.01, size=.75, color="black") +
+  geom_errorbarh(aes(xmin = onemC_mean - onemC_me, xmax = onemC_mean + onemC_me), height = 0.02, size=.75, color="black") +
+  geom_point(aes(col = habitat), size = 2) +
+  scale_colour_manual(labels = c("shaded", "exposed"), values = c("black", "orange")) + 
+  scale_shape_manual(values = c(21, 22))
+ 
+#ANOVA [1 - C]
+
+leveneTest(onemC ~ habitat, data = dynamQ_max_EnormEk)
+
+#       Df F value   Pr(>F)   
+#group   1  9.9831 0.001833 **
+#      194
+
+#variance across groups is not homogeneous -- non-parametric test required
+
+kruskal.test(onemC ~ habitat, data = dynamQ_max_EnormEk)
+
+# Kruskal-Wallis chi-squared = 68.777, df = 1, p-value < 2.2e-16
+
+#ANOVA [1 - Q]
+
+leveneTest(onemQ ~ habitat, data = dynamQ_max_EnormEk)
+
+#       Df F value  Pr(>F)  
+#group   1  5.5807 0.01915 *
+#      194 
+
+#variance across groups is not homogeneous -- non-parametric test required
+
+kruskal.test(onemQ ~ habitat, data = dynamQ_max_EnormEk)
+
+# Kruskal-Wallis chi-squared = 49.69, df = 1, p-value = 1.801e-12
+
+
+saveRDS(dynamQ_max_EnormEk, "dynamQ_max_EnormEk.rds")
+
+dynamQ_max_EnormEk %>%
+  ungroup()%>%
+  group_by(habitat) %>%
+  summarise(onemC_mean = mean(onemC),
+            onemQ_mean = mean(onemQ))
+```
+
+## (S 2.3) plot species [1-C] & [1-Q] vs habitat
+```{r}
+dynamQ_max_EnormEk %>%
+  group_by(habitat) %>%
+  mutate(n = row_number()) %>%
+  pivot_wider(names_from = habitat, values_from = c(onemC), id_cols = c(genus, species, n)) %>%
+  mutate(onemC_fold_change = (cryptic / exposed)) %>%
+  ggplot() +
+  geom_boxplot(aes(reorder(species, onemC_fold_change, mean),  onemC_fold_change)) +
+  theme(aspect.ratio = 1) +
+  ylab("Intra-colony [1 - C] fold difference") +
+  xlab("Species") +
+  theme_bw() + 
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
+  theme(axis.text.x = element_text(color = "black", size = 12, angle = 90, hjust = 1, vjust = .5, face = "italic"),
+        axis.text.y = element_text(color = "black", size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"),  
+        axis.title.x = element_text(color = "black", size = 14, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text(color = "black", size = 14, angle = 90, hjust = .5, vjust = .5, face = "plain"))
+
+
+dynamQ_CI <- dynamQ_max_EnormEk %>%
+ group_by(habitat) %>%
+  mutate(onemC_sd = sd(onemC), onemQ_sd = sd(onemQ),
+         onemC_me = qnorm(.975)*(onemC_sd/sqrt(98)), onemQ_me = qnorm(.975)*(onemQ_sd/sqrt(98))) %>%
+  select(habitat, onemC_me, onemQ_me) %>%
+  distinct()
+
+cb_Palette <- c("#000000", "#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "springgreen", "darkblue", "#57142d", "#c35d80", "#d20d30", "#811596", "#90b325", "#f68054", "#e9fbff", "aquamarine", "#a6023f")
+
+species_dynamQ_maximal_plot <- dynamQ_max_EnormEk %>%
+  group_by(species, habitat) %>%
+  summarise(onemC_mean = mean(onemC),
+            onemQ_mean = mean(onemQ)) %>%
+  left_join(dynamQ_CI, dynamQ_max_EnormEk, by = "habitat") %>%
+  ggplot(aes(onemC_mean, onemQ_mean, group = species)) +
+  geom_line(linetype = "dotted") +
+  geom_abline(intercept = 0, slope = 1) +
+  coord_cartesian(ylim = c(0.0, 1), xlim = c(0.0, .5)) +
+  guides(fill = guide_legend(override.aes = list(shape = 21))) +
+  ylab("[1 - Q] mean (+/- 95% CI)") +
+  xlab("[1 - C] mean (+/- 95% CI)") +
+  theme_bw() +
+  theme(axis.text.x = element_text(color = "black", size = 12, angle = 0, hjust = .5, vjust = .5, face = "plain"),
+        axis.text.y = element_text(color = "black", size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"),  
+        axis.title.x = element_text(color = "black", size = 14, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text(color = "black", size = 14, angle = 90, hjust = .5, vjust = .5, face = "plain"),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14)) +
+  geom_errorbar(aes(ymin = onemQ_mean - onemQ_me, ymax = onemQ_mean + onemQ_me), width = 0.01, size=.4, color="black") +
+  geom_errorbarh(aes(xmin = onemC_mean - onemC_me, xmax = onemC_mean + onemC_me), height = 0.02, size=.4, color="black") + 
+  geom_point(aes(fill = species, shape = habitat), size = 4) +
+  labs(fill = "Species", shape = "Habitat") +
+  scale_fill_manual(values = cb_Palette) +
+  scale_shape_manual(labels = c("Shaded", "Exposed"), values = c(21, 22))
+
+
+#ggsave("S3_species_dynamQ_maximal_plot.pdf", plot = species_dynamQ_maximal_plot, units = "in", height = 7, width = 10)
+```
+
+# Reflectance spectra of coral tissues
+
+```{r}
+#Import, smooth, then covert to long format and multi-spec(mspct)
+
+# Pavo rspec object
+specs <- getspec(where = "ocean_optics_data/", ext = "txt", lim = c(400, 750), decimal = ".") %>%
+procspec(opt = "smooth", span = 0.1)
+
+# Create a long-format df for ggplot
+map <- PAM %>%
+  select(sampleID, PAMID, genus, species, site, habitat, replicate) %>%
+  group_by(sampleID, PAMID, genus, species, site, habitat, replicate) %>%
+  slice(1) %>%
+  ungroup %>%
+  filter(sampleID != "C96" & sampleID != "E96" & sampleID != "C49" & sampleID != "E49")
+
+specslong <- specs %>%
+  pivot_longer(names_to = "sampleID", values_to = "reflectance", -wl) %>%
+ filter(sampleID != "C96" & sampleID != "E96" & sampleID != "C49" & sampleID != "E49")
+  
+specslong <- left_join(specslong, map)
+```
+# Explore the spectral qualities by habitat
+
+```{r}
+
+# An explanation of these parameters can be found by typing ?summary.rspec in the console
+spec_summary <- summary(specs) %>%
+  tibble::rownames_to_column(var = "sampleID") %>%
+  pivot_longer(-sampleID, names_to = "variable") %>%
+  left_join(., map) %>%
+  filter(sampleID != "C96" & sampleID != "E96" & sampleID != "C49" & sampleID != "E49")
+
+
+# Plot differences in spectral reflectance according to habitat
+
+spec_summary %>%
+  filter(variable == "B2") %>% # Choose a parameter of interest to summarise
+  ggplot() +
+  geom_boxplot(aes(x = habitat, y = value)) +
+  facet_wrap(~ species, labeller = labeller(.multi_line = FALSE)) +
+  theme(aspect.ratio = 1) +
+  ylab("B2 Mean Brightness") +
+  xlab("Habitat")
+
+# Plot all replicates
+specslong %>%
+  mutate(absorbance = 1-(reflectance/100)) %>% # Convert reflectance to absorbance
+ggplot(aes(wl, absorbance, colour = habitat, group = PAMID)) +
+  geom_line(aes(linetype = factor(replicate))) +
+  facet_wrap(~ species) +
+  scale_fill_identity() +
+  scale_x_wl_continuous() +
+  ylim(values = c(0.5, 1)) +
+  scale_colour_manual(values = c("black", "orange")) +
+  theme(aspect.ratio = 1)
+
+```
+
+#Specs/total brightness summary and one-way ANOVA
+
+```{r}
+
+library(Rmisc)
+
+specslong_cryptic <- specslong %>%
+  filter(habitat == "cryptic")
+
+Specs_cryptic_CI <- group.CI(reflectance ~ wl, specslong_cryptic, ci = .95) %>%
+left_join(specslong_cryptic, Specs_cryptic_CI,  by = "wl")
+
+specslong_exposed <- specslong %>%
+  filter(habitat == "exposed")
+
+Specs_exposed_CI <- group.CI(reflectance ~ wl, specslong_exposed, ci = .95) %>%
+left_join(specslong_exposed, Specs_exposed_CI,  by = "wl")
+
+specslong_summary <- rbind(Specs_cryptic_CI, Specs_exposed_CI)
+
+specslong_me <- specslong %>%
+ group_by(habitat, wl) %>%
+  mutate(sd = sd(reflectance), 
+         reflectance_mean = mean(reflectance),
+         reflectance_me = qnorm(.975)*(sd/sqrt(98))) %>%
+  select(habitat, reflectance_mean, reflectance_me) %>%
+  distinct()
+
+specs_summary_plot <- specslong_me %>%
+  group_by(wl, habitat) %>%
+  mutate(absorbance_mean = 1-(reflectance_mean/100)) %>% 
+  mutate(mean_absorbance_y.min = 1-((reflectance_mean - reflectance_me)/100)) %>%
+  mutate(mean_absorbance_y.max = 1 - ((reflectance_mean + reflectance_me)/100)) %>% # Convert reflectance to absorbance
+ggplot(aes(wl, absorbance_mean, colour = habitat)) +
+  geom_line() +
+  scale_fill_identity() +
+  scale_x_wl_continuous() +
+  ylim(values = c(0.5, 1)) +
+  geom_ribbon(aes(ymin = mean_absorbance_y.min, ymax = mean_absorbance_y.max), linetype=2, alpha=0.1) +
+  scale_colour_manual(labels = c("shaded", "exposed"), values = c("black", "orange")) +
+  theme(aspect.ratio = 1) +
+  theme_bw() +
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
+  theme(axis.text.x = element_text(color = "black", size = 12, angle = 0, hjust = .5, vjust = .5, face = "plain"),
+        axis.text.y = element_text(color = "black", size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"),  
+        axis.title.x = element_text(color = "black", size = 14, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text(color = "black", size = 14, angle = 90, hjust = .5, vjust = .5, face = "plain"),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14)) +
+  ylab("Mean absorbance") +
+  labs(col = "Habitat")
+
+specs_summary_plot
+
+total_brightness <- spec_summary %>% 
+  filter(variable == "B1") %>%
+  rename(total_reflectance = value)
+
+results_total_brightness_ANOVA <- aov(total_reflectance ~ habitat, data = total_brightness)
+
+summary(results_total_brightness_ANOVA)
+
+#              Df    Sum Sq   Mean Sq F value Pr(>F)    
+# habitat       1 8.300e+08 830034344   105.3 <2e-16 ***
+# Residuals   198 1.561e+09   7884697
+
+leveneTest(total_reflectance ~ habitat, data = total_brightness)
+
+#        Df F value   Pr(>F)   
+# group   1  10.786 0.001209 **
+#       198                 
+
+# variance across groups is significantly different -- non-parametric test required
+
+kruskal.test(total_reflectance ~ habitat, data = total_brightness)
+
+# Kruskal-Wallis chi-squared = 74.225, df = 1, p-value < 2.2e-16
+
+
+```
+
+# (S 2.4) plot absorbance fold diff vs species
+```{r}
+
+S4_total_brightness <- total_brightness %>%
+  group_by(habitat) %>%
+  mutate(n = row_number()) %>%
+  pivot_wider(names_from = "habitat", values_from = "total_reflectance", id_cols = c(genus, species, n)) %>%
+  mutate(total_brightness_fold_change = (exposed - cryptic)/ cryptic) %>%
+  ggplot() +
+  geom_boxplot(aes(reorder(species, total_brightness_fold_change, mean),  total_brightness_fold_change)) +
+  theme(aspect.ratio = 1, axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.1)) +
+  ylab("Intra-colony total brightness fold difference") +
+  xlab("Species") +
+  theme_bw() + 
+  theme(panel.border = element_rect(fill = NULL, colour = "black"), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
+  theme(axis.text.x = element_text(color = "black", size = 12, angle = 90, hjust = 1, vjust = .5, face = "italic"),
+        axis.text.y = element_text(color = "black", size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"),  
+        axis.title.x = element_text(color = "black", size = 14, angle = 0, hjust = .5, vjust = 0, face = "plain"),
+        axis.title.y = element_text(color = "black", size = 14, angle = 90, hjust = .5, vjust = .5, face = "plain"))
+
+#ggsave("S4_total_brightness.pdf", plot = S4_total_brightness, units = "in", height = 7, width = 10)
+
+```
+
+
+
+# Combine Figure 1
+
+```{r}
+library(patchwork)
+
+Fig_1 <- (FqFm_max_summary_plot + Ek_summary_plot) / 
+(dynamQ_max_EnormEk_plot + specs_summary_plot) +
+    plot_layout(ncol = 1, widths = c(40, 40, 40, 40)) + plot_annotation(tag_levels = 'A')
+
+FqFm_max_dims <- get_dim(FqFm_max_summary_plot)
+Ek_summary_aligned <- set_dim(Ek_summary_plot, FqFm_max_dims)
+dynamQ_max_EnormEk_aligned <- set_dim(dynamQ_max_EnormEk_plot, FqFm_max_dims)
+specs_summary_aligned <- set_dim(specs_summary_plot, FqFm_max_dims)
+
+Fig_1 <- (FqFm_max_summary_plot + Ek_summary_aligned) / 
+(dynamQ_max_EnormEk_aligned + specs_summary_aligned) +
+plot_annotation(tag_levels = 'A')
+
+plots_aligned <- align_patches(FqFm_max_summary_plot, Ek_summary_plot, dynamQ_max_EnormEk_plot, specs_summary_plot)
+
+plots_aligned + plot_layout(ncol = 2)
+
+Fig_1 <- plot_grid(FqFm_max_summary_plot, Ek_summary_plot, dynamQ_max_EnormEk_plot, specs_summary_plot, ncol = 2, align = "h", axis = "bt") +  draw_plot_label(c("A", "B", "C", "D"), 
+                   size = 14, 
+                   c(0, 0.5, 0, 0.5),
+                   c(1, 1, 0.5, 0.5))
+
+Fig_1
+
+ggsave("Fig_1.pdf", plot = Fig_1, units = "in", height = 8, width = 12)
+```
+
+#save RDS
+```{r}
+saveRDS(FqFmparams, "FqFmparams_no_PAR_adjust.rds")
+
+saveRDS(onemC_max_EnormEk, "onemC_max_EnormEk.rds")
+
+saveRDS(onemQ_max_EnormEk, "onemQ_max_EnormEk.rds")
+
+saveRDS(dynamQ_max_EnormEk, "dynamQ_max_EnormEk.rds")
+
+saveRDS(total_brightness, "total_brightness.rds")
+```
+

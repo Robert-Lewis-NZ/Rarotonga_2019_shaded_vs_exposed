@@ -1,0 +1,32 @@
+"0","PAM <- read_csv(""PAM_data/PAM.csv"")  %>%"
+"0","  group_by(PAMID) %>%"
+"0","  mutate(date = dmy(time_date),"
+"0","         Fm = ifelse(Fm <= F, F+1, Fm), # There should not be any Fm values < F"
+"0","         PAR = ifelse(PAR == 0, 0.001, PAR), # PAR values = 0 may result in infinite values during fitting"
+"0","         FqFm = (Fm - F)/Fm, # Quantum yield of PSII"
+"0","         rETR = FqFm * PAR, # Relative electron transport rate (we will update this later with absorbance measurements)"
+"0","         Fo.p = first(F) / (first(FqFm) + (first(F)/Fm)), # Fo'"
+"0","         onemC = (Fm - F)/(Fm - Fo.p), # [1 - C]"
+"0","         Fv.p = Fm - Fo.p, # Fv'"
+"0","         onemQ = (Fv.p/Fm)/first(FqFm)) %>% # [1 - Q]"
+"0","  ungroup() %>%"
+"0","  mutate(species_short = paste0(substr(genus, start = 1, stop = 1), ""."", "" "", sapply(strsplit(species, split = "" ""), tail, 1L)))"
+"2","Parsed with column specification:
+cols(
+  time_date = [31mcol_character()[39m,
+  sampleID = [31mcol_character()[39m,
+  habitat = [31mcol_character()[39m,
+  genus = [31mcol_character()[39m,
+  species = [31mcol_character()[39m,
+  site = [31mcol_character()[39m,
+  PAMID = [32mcol_double()[39m,
+  replicate = [32mcol_double()[39m,
+  PAR = [32mcol_double()[39m,
+  F = [32mcol_double()[39m,
+  Fm = [32mcol_double()[39m
+)
+"
+"0","# Sanity check: PAR count across dataset for any missing data"
+"0","PAM %>% "
+"0","  group_by(habitat, PAR) %>%"
+"0","  count(PAR, sort = TRUE)"

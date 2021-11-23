@@ -1,0 +1,33 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1585778818358.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "B0E8C3D1",
+    "lastKnownWriteTime" : 13792669002432611,
+    "last_content_update" : 1585778818358,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "cacheKey" : "8AEB6244",
+        "caption" : "specslong",
+        "contentUrl" : "grid_resource/gridviewer.html?env=&obj=specslong&cache_key=8AEB6244",
+        "displayedObservations" : "70200",
+        "environment" : "",
+        "expression" : "specslong",
+        "object" : "specslong",
+        "preview" : "0",
+        "totalObservations" : "70200",
+        "variables" : "9"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 4,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_dataframe"
+}

@@ -1,0 +1,33 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1585785693750.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "F716A3DA",
+    "lastKnownWriteTime" : 13792669002432611,
+    "last_content_update" : 1585785693750,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "cacheKey" : "E6FCE67F",
+        "caption" : "FqFmfits",
+        "contentUrl" : "grid_resource/gridviewer.html?env=&obj=FqFmfits&cache_key=E6FCE67F",
+        "displayedObservations" : "200",
+        "environment" : "",
+        "expression" : "FqFmfits",
+        "object" : "FqFmfits",
+        "preview" : "0",
+        "totalObservations" : "200",
+        "variables" : "7"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 8,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_dataframe"
+}
