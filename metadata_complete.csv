@@ -1,0 +1,250 @@
+sample_ID,habitat,sample_photo_ids,genus,species,PAM_number,site,stamp_ID,stamp,project,pair
+C1,cryptic,IMG_1149,Acropora,Acropora verweyi,1448,Avarua_East,NA,NA,c_v_e,1
+E1,exposed,IMG_1150,Acropora,Acropora verweyi,1457,Avarua_East,NA,NA,c_v_e,1
+C2,cryptic,IMG_1151,Acropora,Acropora verweyi,1466,Avarua_East,NA,NA,c_v_e,2
+E2,exposed,IMG_1152,Acropora,Acropora verweyi,1475,Avarua_East,NA,NA,c_v_e,2
+C3,cryptic,IMG_1153,Acropora,Acropora verweyi,1484,Avarua_East,NA,NA,c_v_e,3
+E3,exposed,IMG_1154,Acropora,Acropora verweyi,1493,Avarua_East,NA,NA,c_v_e,3
+C4,cryptic,IMG_1155,Acropora,Acropora verweyi,1502,Avarua_East,NA,NA,c_v_e,4
+E4,exposed,IMG_1156,Acropora,Acropora verweyi,1511,Avarua_East,NA,NA,c_v_e,4
+C5,cryptic,IMG_1157,Acropora,Acropora verweyi,1520,Avarua_East,NA,NA,c_v_e,5
+E5,exposed,IMG_1158,Acropora,Acropora verweyi,1529,Avarua_East,NA,NA,c_v_e,5
+C6,cryptic,IMG_1159,Acropora,Acropora nasuta,1538,Avarua_East,NA,NA,c_v_e,6
+E6,exposed,IMG_1160,Acropora,Acropora nasuta,1547,Avarua_East,NA,NA,c_v_e,6
+C7,cryptic,IMG_1161,Acropora,Acropora nasuta,1556,Avarua_East,NA,NA,c_v_e,7
+E7,exposed,IMG_1162,Acropora,Acropora nasuta,1565,Avarua_East,NA,NA,c_v_e,7
+C8,cryptic,IMG_1163,Acropora,Acropora nasuta,1574,Avarua_East,NA,NA,c_v_e,8
+E8,exposed,IMG_1164,Acropora,Acropora nasuta,1583,Avarua_East,NA,NA,c_v_e,8
+C9,cryptic,IMG_1165,Acropora,Acropora nasuta,1592,Avarua_East,NA,NA,c_v_e,9
+E9,exposed,IMG_1166,Acropora,Acropora nasuta,1601,Avarua_East,NA,NA,c_v_e,9
+C10,cryptic,IMG_1167,Acropora,Acropora nasuta,1610,Avarua_East,NA,NA,c_v_e,10
+E10,exposed,IMG_1168,Acropora,Acropora nasuta,1619,Avarua_East,NA,NA,c_v_e,10
+C11,cryptic,IMG_1171,Psammocora ,Psammocora obtusangula,1629,Nikau,NA,NA,c_v_e,11
+E11,exposed,IMG_1172,Psammocora ,Psammocora obtusangula,1638,Nikau,NA,NA,c_v_e,11
+C12,cryptic,IMG_1173,Psammocora ,Psammocora obtusangula,1647,Nikau,NA,NA,c_v_e,12
+E12,exposed,IMG_1175,Psammocora ,Psammocora obtusangula,1656,Nikau,NA,NA,c_v_e,12
+C13,cryptic,IMG_1177,Psammocora ,Psammocora obtusangula,1665,Nikau,NA,NA,c_v_e,13
+E13,exposed,IMG_1178,Psammocora ,Psammocora obtusangula,1674,Nikau,NA,NA,c_v_e,13
+C14,cryptic,IMG_1179,Psammocora ,Psammocora obtusangula,1683,Nikau,NA,NA,c_v_e,14
+E14,exposed,IMG_1180,Psammocora ,Psammocora obtusangula,1692,Nikau,NA,NA,c_v_e,14
+C15,cryptic,IMG_1181,Psammocora ,Psammocora obtusangula,1701,Nikau,NA,NA,c_v_e,15
+E15,exposed,IMG_1182,Psammocora ,Psammocora obtusangula,1710,Nikau,NA,NA,c_v_e,15
+C16,cryptic,IMG_1184,Porites,Porites lutea cf. lobata,1719,Nikau,NA,NA,c_v_e,16
+E16,exposed,IMG_1188,Porites,Porites lutea cf. lobata,1728,Nikau,NA,NA,c_v_e,16
+C17,cryptic,IMG_1189,Porites,Porites lutea cf. lobata,1737,Nikau,NA,NA,c_v_e,17
+E17,exposed,IMG_1190,Porites,Porites lutea cf. lobata,1746,Nikau,NA,NA,c_v_e,17
+C18,cryptic,IMG_1191,Porites,Porites lutea cf. lobata,1755,Nikau,NA,NA,c_v_e,18
+E18,exposed,IMG_1192,Porites,Porites lutea cf. lobata,1764,Nikau,NA,NA,c_v_e,18
+C19,cryptic,IMG_1196,Porites,Porites lutea cf. lobata,1773,Nikau,NA,NA,c_v_e,19
+E19,exposed,IMG_1197,Porites,Porites lutea cf. lobata,1782,Nikau,NA,NA,c_v_e,19
+C20,cryptic,IMG_1198,Porites,Porites lutea cf. lobata,1791,Nikau,NA,NA,c_v_e,20
+E20,exposed,IMG_1199,Porites,Porites lutea cf. lobata,1800,Nikau,NA,NA,c_v_e,20
+C21,cryptic,IMG_1215,Hydnophora,Hydnophora microconos,1896,Nikau,NA,NA,c_v_e,21
+E21,exposed,IMG_1205,Hydnophora,Hydnophora microconos,1815,Nikau,NA,NA,c_v_e,21
+C22,cryptic,IMG_1206,Hydnophora,Hydnophora microconos,1824,Nikau,NA,NA,c_v_e,22
+E22,exposed,IMG_1207,Hydnophora,Hydnophora microconos,1833,Nikau,NA,NA,c_v_e,22
+C23,cryptic,IMG_1208,Hydnophora,Hydnophora microconos,1842,Nikau,NA,NA,c_v_e,23
+E23,exposed,IMG_1209,Hydnophora,Hydnophora microconos,1851,Nikau,NA,NA,c_v_e,23
+C24,cryptic,IMG_1210,Hydnophora,Hydnophora microconos,1860,Nikau,NA,NA,c_v_e,24
+E24,exposed,IMG_1212,Hydnophora,Hydnophora microconos,1869,Nikau,NA,NA,c_v_e,24
+C25,cryptic,IMG_1213,Hydnophora,Hydnophora microconos,1878,Nikau,NA,NA,c_v_e,25
+E25,exposed,IMG_1214,Hydnophora,Hydnophora microconos,1887,Nikau,NA,NA,c_v_e,25
+C26,cryptic,IMG_1216,Acropora,Acropora humilis,1905,Nikau,NA,NA,c_v_e,26
+E26,exposed,IMG_1217,Acropora,Acropora humilis,1914,Nikau,NA,NA,c_v_e,26
+C27,cryptic,IMG_1218,Acropora,Acropora humilis,1923,Nikau,NA,NA,c_v_e,27
+E27,exposed,IMG_1220,Acropora,Acropora humilis,1932,Nikau,NA,NA,c_v_e,27
+C28,cryptic,IMG_1221,Acropora,Acropora humilis,1941,Nikau,NA,NA,c_v_e,28
+E28,exposed,IMG_1222,Acropora,Acropora humilis,1950,Nikau,NA,NA,c_v_e,28
+C29,cryptic,IMG_1223,Acropora,Acropora humilis,1959,Nikau,NA,NA,c_v_e,29
+E29,exposed,IMG_1224,Acropora,Acropora humilis,1968,Nikau,NA,NA,c_v_e,29
+C30,cryptic,IMG_1225,Acropora,Acropora humilis,1977,Nikau,NA,NA,c_v_e,30
+E30,exposed,IMG_1226,Acropora,Acropora humilis,1986,Nikau,NA,NA,c_v_e,30
+C31,cryptic,IMG_1227,Pocillopora,Pocillopora meandrina,1996,Avarua_West,NA,NA,c_v_e,31
+E31,exposed,IMG_1228,Pocillopora,Pocillopora meandrina,2005,Avarua_West,NA,NA,c_v_e,31
+C32,cryptic,IMG_1229,Pocillopora,Pocillopora meandrina,2014,Avarua_West,NA,NA,c_v_e,32
+E32,exposed,IMG_1232,Pocillopora,Pocillopora meandrina,2023,Avarua_West,NA,NA,c_v_e,32
+C33,cryptic,IMG_1233,Pocillopora,Pocillopora meandrina,2032,Avarua_West,NA,NA,c_v_e,33
+E33,exposed,IMG_1234,Pocillopora,Pocillopora meandrina,2041,Avarua_West,NA,NA,c_v_e,33
+C34,cryptic,IMG_1235,Pocillopora,Pocillopora meandrina,2050,Avarua_West,NA,NA,c_v_e,34
+E34,exposed,IMG_1236,Pocillopora,Pocillopora meandrina,2059,Avarua_West,NA,NA,c_v_e,34
+C35,cryptic,IMG_1237,Pocillopora,Pocillopora meandrina,2068,Avarua_West,NA,NA,c_v_e,35
+E35,exposed,IMG_1238,Pocillopora,Pocillopora meandrina,2077,Avarua_West,NA,NA,c_v_e,35
+C36,cryptic,IMG_1239,Acropora,Acropora retusa,2086,Avarua_West,NA,NA,c_v_e,36
+E36,exposed,IMG_1240,Acropora,Acropora retusa,2095,Avarua_West,NA,NA,c_v_e,36
+C37,cryptic,IMG_1241,Acropora,Acropora retusa,2104,Avarua_West,NA,NA,c_v_e,37
+E37,exposed,IMG_1242,Acropora,Acropora retusa,2113,Avarua_West,NA,NA,c_v_e,37
+C38,cryptic,IMG_1244,Acropora,Acropora retusa,2122,Avarua_West,NA,NA,c_v_e,38
+E38,exposed,IMG_1245,Acropora,Acropora retusa,2131,Avarua_West,NA,NA,c_v_e,38
+C39,cryptic,IMG_1246,Acropora,Acropora retusa,2140,Avarua_West,NA,NA,c_v_e,39
+E39,exposed,IMG_1247,Acropora,Acropora retusa,2149,Avarua_West,NA,NA,c_v_e,39
+C40,cryptic,IMG_1248,Acropora,Acropora retusa,2158,Avarua_West,NA,NA,c_v_e,40
+E40,exposed,IMG_1261,Acropora,Acropora retusa,2257,Avarua_West,NA,NA,c_v_e,40
+C41,cryptic,IMG_1249,Leptoria,Leptoria phrygia,2167,Avarua_West,NA,NA,c_v_e,41
+E41,exposed,IMG_1250,Leptoria,Leptoria phrygia,2176,Avarua_West,NA,NA,c_v_e,41
+C42,cryptic,IMG_1251,Leptoria,Leptoria phrygia,2185,Avarua_West,NA,NA,c_v_e,42
+E42,exposed,IMG_1252,Leptoria,Leptoria phrygia,2194,Avarua_West,NA,NA,c_v_e,42
+C43,cryptic,IMG_1254,Leptoria,Leptoria phrygia,2203,Avarua_West,NA,NA,c_v_e,43
+E43,exposed,IMG_1256,Leptoria,Leptoria phrygia,2212,Avarua_West,NA,NA,c_v_e,43
+C44,cryptic,IMG_1257,Leptoria,Leptoria phrygia,2221,Avarua_West,NA,NA,c_v_e,44
+E44,exposed,IMG_1258,Leptoria,Leptoria phrygia,2230,Avarua_West,NA,NA,c_v_e,44
+C45,cryptic,IMG_1259,Leptoria,Leptoria phrygia,2239,Avarua_West,NA,NA,c_v_e,45
+E45,exposed,IMG_1260,Leptoria,Leptoria phrygia,2248,Avarua_West,NA,NA,c_v_e,45
+C46,cryptic,IMG_1282,Pocillopora,Pocillopora damicornis,2417,Nikau,NA,NA,c_v_e,46
+E46,exposed,IMG_1284,Pocillopora,Pocillopora damicornis,2426,Nikau,NA,NA,c_v_e,46
+C47,cryptic,IMG_1262,Pocillopora,Pocillopora damicornis,2273,Nikau,NA,NA,c_v_e,47
+E47,exposed,IMG_1263,Pocillopora,Pocillopora damicornis,2282,Nikau,NA,NA,c_v_e,47
+C48,cryptic,IMG_1264,Pocillopora,Pocillopora damicornis,2291,Nikau,NA,NA,c_v_e,48
+E48,exposed,IMG_1265,Pocillopora,Pocillopora damicornis,2300,Nikau,NA,NA,c_v_e,48
+C49,cryptic,IMG_1266,Pocillopora,Pocillopora damicornis,2309,Nikau,NA,NA,c_v_e,49
+E49,exposed,IMG_1267,Pocillopora,Pocillopora damicornis,2318,Nikau,NA,NA,c_v_e,49
+C50,cryptic,IMG_1310,Pocillopora,Pocillopora damicornis,2619,Muri,NA,NA,c_v_e,50
+E50,exposed,IMG_1311,Pocillopora,Pocillopora damicornis,2628,Muri,NA,NA,c_v_e,50
+C51,cryptic,IMG_1269,Acropora,Acropora elseyi,2327,Nikau,NA,NA,c_v_e,51
+E51,exposed,IMG_1270,Acropora,Acropora elseyi,2336,Nikau,NA,NA,c_v_e,51
+C52,cryptic,IMG_1273,Acropora,Acropora elseyi,2345,Nikau,NA,NA,c_v_e,52
+E52,exposed,IMG_1274,Acropora,Acropora elseyi,2354,Nikau,NA,NA,c_v_e,52
+C53,cryptic,IMG_1275,Acropora,Acropora elseyi,2363,Nikau,NA,NA,c_v_e,53
+E53,exposed,IMG_1276,Acropora,Acropora elseyi,2372,Nikau,NA,NA,c_v_e,53
+C54,cryptic,IMG_1278,Acropora,Acropora elseyi,2381,Nikau,NA,NA,c_v_e,54
+E54,exposed,IMG_1279,Acropora,Acropora elseyi,2390,Nikau,NA,NA,c_v_e,54
+C55,cryptic,IMG_1280,Acropora,Acropora elseyi,2399,Nikau,NA,NA,c_v_e,55
+E55,exposed,IMG_1281,Acropora,Acropora elseyi,2408,Nikau,NA,NA,c_v_e,55
+C56,cryptic,IMG_1295,Leptastrea ,Leptastrea purpurea,2511,Muri,NA,NA,c_v_e,56
+E56,exposed,IMG_1285,Leptastrea ,Leptastrea purpurea,2439,Muri,NA,NA,c_v_e,56
+C57,cryptic,IMG_1286,Leptastrea ,Leptastrea purpurea,2448,Muri,NA,NA,c_v_e,57
+E57,exposed,IMG_1288,Leptastrea ,Leptastrea purpurea,2457,Muri,NA,NA,c_v_e,57
+C58,cryptic,IMG_1289,Leptastrea ,Leptastrea purpurea,2466,Muri,NA,NA,c_v_e,58
+E58,exposed,IMG_1291,Leptastrea ,Leptastrea purpurea,2475,Muri,NA,NA,c_v_e,58
+C59,cryptic,IMG_1296,Leptastrea ,Leptastrea purpurea,2520,Muri,NA,NA,c_v_e,59
+E59,exposed,IMG_1292,Leptastrea ,Leptastrea purpurea,2484,Muri,NA,NA,c_v_e,59
+C60,cryptic,IMG_1293,Leptastrea ,Leptastrea purpurea,2493,Muri,NA,NA,c_v_e,60
+E60,exposed,IMG_1294,Leptastrea ,Leptastrea purpurea,2502,Muri,NA,NA,c_v_e,60
+C61,cryptic,IMG_1297,Hydnophora,Hydnophora exesa,2529,Muri,NA,NA,c_v_e,61
+E61,exposed,IMG_1298,Hydnophora,Hydnophora exesa,2538,Muri,NA,NA,c_v_e,61
+C62,cryptic,IMG_1299,Hydnophora,Hydnophora exesa,2547,Muri,NA,NA,c_v_e,62
+E62,exposed,IMG_1300,Hydnophora,Hydnophora exesa,2556,Muri,NA,NA,c_v_e,62
+C63,cryptic,IMG_1302,Hydnophora,Hydnophora exesa,2565,Muri,NA,NA,c_v_e,63
+E63,exposed,IMG_1303,Hydnophora,Hydnophora exesa,2574,Muri,NA,NA,c_v_e,63
+C64,cryptic,IMG_1304,Hydnophora,Hydnophora exesa,2583,Muri,NA,NA,c_v_e,64
+E64,exposed,IMG_1306,Hydnophora,Hydnophora exesa,2592,Muri,NA,NA,c_v_e,64
+C65,cryptic,IMG_1308,Hydnophora,Hydnophora exesa,2601,Muri,NA,NA,c_v_e,65
+E65,exposed,IMG_1309,Hydnophora,Hydnophora exesa,2610,Muri,NA,NA,c_v_e,65
+C66,cryptic,IMG_1312,Psammocora,Psammocora stellata,2637,Muri,NA,NA,c_v_e,66
+E66,exposed,IMG_1313,Psammocora,Psammocora stellata,2646,Muri,NA,NA,c_v_e,66
+C67,cryptic,IMG_1314,Psammocora,Psammocora stellata,2655,Muri,NA,NA,c_v_e,67
+E67,exposed,IMG_1315,Psammocora,Psammocora stellata,2664,Muri,NA,NA,c_v_e,67
+C68,cryptic,IMG_1316,Psammocora,Psammocora stellata,2673,Muri,NA,NA,c_v_e,68
+E68,exposed,IMG_1317,Psammocora,Psammocora stellata,2682,Muri,NA,NA,c_v_e,68
+C69,cryptic,IMG_1318,Psammocora,Psammocora stellata,2691,Muri,NA,NA,c_v_e,69
+E69,exposed,IMG_1319,Psammocora,Psammocora stellata,2700,Muri,NA,NA,c_v_e,69
+C70,cryptic,IMG_1320,Psammocora,Psammocora stellata,2709,Muri,NA,NA,c_v_e,70
+E70,exposed,IMG_1321,Psammocora,Psammocora stellata,2718,Muri,NA,NA,c_v_e,70
+C71,cryptic,IMG_1323,Galaxea,Galaxea fascicularis,2728,Arakuo_Tapere,NA,NA,c_v_e,71
+E71,exposed,IMG_1324,Galaxea,Galaxea fascicularis,2737,Arakuo_Tapere,NA,NA,c_v_e,71
+C72,cryptic,IMG_1325,Galaxea,Galaxea fascicularis,2746,Arakuo_Tapere,NA,NA,c_v_e,72
+E72,exposed,IMG_1326,Galaxea,Galaxea fascicularis,2755,Arakuo_Tapere,NA,NA,c_v_e,72
+C73,cryptic,IMG_1327,Galaxea,Galaxea fascicularis,2764,Arakuo_Tapere,NA,NA,c_v_e,73
+E73,exposed,IMG_1328,Galaxea,Galaxea fascicularis,2773,Arakuo_Tapere,NA,NA,c_v_e,73
+C74,cryptic,IMG_1329,Galaxea,Galaxea fascicularis,2782,Arakuo_Tapere,NA,NA,c_v_e,74
+E74,exposed,IMG_1330,Galaxea,Galaxea fascicularis,2791,Arakuo_Tapere,NA,NA,c_v_e,74
+C75,cryptic,IMG_1331,Galaxea,Galaxea fascicularis,2800,Arakuo_Tapere,NA,NA,c_v_e,75
+E75,exposed,IMG_1332,Galaxea,Galaxea fascicularis,2809,Arakuo_Tapere,NA,NA,c_v_e,75
+C76,cryptic,IMG_1333,Favia,Favia stelligera,2818,Black_Rocks,NA,NA,c_v_e,76
+E76,exposed,IMG_1334,Favia,Favia stelligera,2827,Black_Rocks,NA,NA,c_v_e,76
+C77,cryptic,IMG_1335,Favia,Favia stelligera,2836,Black_Rocks,NA,NA,c_v_e,77
+E77,exposed,IMG_1336,Favia,Favia stelligera,2845,Black_Rocks,NA,NA,c_v_e,77
+C78,cryptic,IMG_1337,Favia,Favia stelligera,2854,Black_Rocks,NA,NA,c_v_e,78
+E78,exposed,IMG_1338,Favia,Favia stelligera,2863,Black_Rocks,NA,NA,c_v_e,78
+C79,cryptic,IMG_1339,Favia,Favia stelligera,2872,Black_Rocks,NA,NA,c_v_e,79
+E79,exposed,IMG_1340,Favia,Favia stelligera,2881,Black_Rocks,NA,NA,c_v_e,79
+C80,cryptic,IMG_1341,Favia,Favia stelligera,2890,Black_Rocks,NA,NA,c_v_e,80
+E80,exposed,IMG_1342,Favia,Favia stelligera,2899,Black_Rocks,NA,NA,c_v_e,80
+C81,cryptic,IMG_1351,Acropora,Acropora cf anthocercis,2988,Avarua_West,NA,NA,c_v_e,81
+E81,exposed,IMG_1352,Acropora,Acropora cf anthocercis,2997,Avarua_West,NA,NA,c_v_e,81
+C82,cryptic,IMG_1343,Acropora,Acropora cf anthocercis,2916,Avarua_West,NA,NA,c_v_e,82
+E82,exposed,IMG_1344,Acropora,Acropora cf anthocercis,2925,Avarua_West,NA,NA,c_v_e,82
+C83,cryptic,IMG_1345,Acropora,Acropora cf anthocercis,2934,Avarua_West,NA,NA,c_v_e,83
+E83,exposed,IMG_1346,Acropora,Acropora cf anthocercis,2943,Avarua_West,NA,NA,c_v_e,83
+C84,cryptic,IMG_1347,Acropora,Acropora cf anthocercis,2952,Avarua_West,NA,NA,c_v_e,84
+E84,exposed,IMG_1348,Acropora,Acropora cf anthocercis,2961,Avarua_West,NA,NA,c_v_e,84
+C85,cryptic,IMG_1349,Acropora,Acropora cf anthocercis,2970,Avarua_West,NA,NA,c_v_e,85
+E85,exposed,IMG_1350,Acropora,Acropora cf anthocercis,2979,Avarua_West,NA,NA,c_v_e,85
+C86,cryptic,IMG_1353,Acropora,Acropora hyacinthus,3006,Avarua_West,NA,NA,c_v_e,86
+E86,exposed,IMG_1354,Acropora,Acropora hyacinthus,3015,Avarua_West,NA,NA,c_v_e,86
+C87,cryptic,IMG_1355,Acropora,Acropora hyacinthus,3024,Avarua_West,NA,NA,c_v_e,87
+E87,exposed,IMG_1356,Acropora,Acropora hyacinthus,3033,Avarua_West,NA,NA,c_v_e,87
+C88,cryptic,IMG_1357,Acropora,Acropora hyacinthus,3042,Avarua_West,NA,NA,c_v_e,88
+E88,exposed,IMG_1358,Acropora,Acropora hyacinthus,3051,Avarua_West,NA,NA,c_v_e,88
+C89,cryptic,IMG_1359,Acropora,Acropora hyacinthus,3060,Avarua_West,NA,NA,c_v_e,89
+E89,exposed,IMG_1360,Acropora,Acropora hyacinthus,3069,Avarua_West,NA,NA,c_v_e,89
+C90,cryptic,IMG_1361,Acropora,Acropora hyacinthus,3078,Avarua_West,NA,NA,c_v_e,90
+E90,exposed,IMG_1362,Acropora,Acropora hyacinthus,3087,Avarua_West,NA,NA,c_v_e,90
+C91,cryptic,IMG_1363,Pavona,Pavona duerdeni,3099,Avarua_Harbour,NA,NA,c_v_e,91
+E91,exposed,IMG_1364,Pavona,Pavona duerdeni,3108,Avarua_Harbour,NA,NA,c_v_e,91
+C92,cryptic,IMG_1365,Pavona,Pavona duerdeni,3117,Avarua_Harbour,NA,NA,c_v_e,92
+E92,exposed,IMG_1382,Pavona,Pavona duerdeni,3275,Avarua_Harbour,NA,NA,c_v_e,92
+C93,cryptic,IMG_1366,Pavona,Pavona duerdeni,3131,Avarua_Harbour,NA,NA,c_v_e,93
+E93,exposed,IMG_1367,Pavona,Pavona duerdeni,3140,Avarua_Harbour,NA,NA,c_v_e,93
+C94,cryptic,IMG_1368,Pavona,Pavona duerdeni,3149,Avarua_Harbour,NA,NA,c_v_e,94
+E94,exposed,IMG_1369,Pavona,Pavona duerdeni,3158,Avarua_Harbour,NA,NA,c_v_e,94
+C95,cryptic,IMG_1370,Pavona,Pavona duerdeni,3167,Avarua_Harbour,NA,NA,c_v_e,95
+E95,exposed,IMG_1371,Pavona,Pavona duerdeni,3176,Avarua_Harbour,NA,NA,c_v_e,95
+C96,cryptic,IMG_1372,Echinopora,Echinopora gemmacea,3185,Avarua_Harbour,NA,NA,c_v_e,96
+E96,exposed,IMG_1373,Echinopora,Echinopora gemmacea,3194,Avarua_Harbour,NA,NA,c_v_e,96
+C97,cryptic,IMG_1374,Echinopora,Echinopora gemmacea,3203,Avarua_Harbour,NA,NA,c_v_e,97
+E97,exposed,IMG_1375,Echinopora,Echinopora gemmacea,3212,Avarua_Harbour,NA,NA,c_v_e,97
+C98,cryptic,IMG_1376,Echinopora,Echinopora gemmacea,3221,Avarua_Harbour,NA,NA,c_v_e,98
+E98,exposed,IMG_1377,Echinopora,Echinopora gemmacea,3230,Avarua_Harbour,NA,NA,c_v_e,98
+C99,cryptic,IMG_1378,Echinopora,Echinopora gemmacea,3239,Avarua_Harbour,NA,NA,c_v_e,99
+E99,exposed,IMG_1379,Echinopora,Echinopora gemmacea,3248,Avarua_Harbour,NA,NA,c_v_e,99
+C100,cryptic,IMG_1380,Echinopora,Echinopora gemmacea,3257,Avarua_Harbour,NA,NA,c_v_e,100
+E100,exposed,IMG_1381,Echinopora,Echinopora gemmacea,3266,Avarua_Harbour,NA,NA,c_v_e,100
+C101,MC,NA,Hydnophora,Hydnophora microconos,NA,South,A,A,pilot,NA
+E101,MC,NA,Hydnophora,Hydnophora microconos,NA,South,B,B,pilot,NA
+C102,MC,NA,Hydnophora,Hydnophora microconos,NA,South,C,C,pilot,NA
+E102,MC,NA,Hydnophora,Hydnophora microconos,NA,South,D,D,pilot,NA
+C103,MC,NA,Hydnophora,Hydnophora microconos,NA,South,1,1,pilot,NA
+E103,MC,NA,Hydnophora,Hydnophora microconos,NA,South,2,2,pilot,NA
+C104,MC,NA,Hydnophora,Hydnophora microconos,NA,South,3,3,pilot,NA
+E104,MC,NA,Hydnophora,Hydnophora microconos,NA,South,4,4,pilot,NA
+C105,MC,NA,Hydnophora,Hydnophora microconos,NA,South,5,5,pilot,NA
+E105,MC,NA,Hydnophora,Hydnophora microconos,NA,South,A1,A,pilot,NA
+C106,MC,NA,Hydnophora,Hydnophora microconos,NA,South,B1,B,pilot,NA
+E106,MC,NA,Hydnophora,Hydnophora microconos,NA,South,C1,C,pilot,NA
+C107,MC,NA,Hydnophora,Hydnophora microconos,NA,South,D1,D,pilot,NA
+E107,MC,NA,Hydnophora,Hydnophora microconos,NA,South,11,1,pilot,NA
+C108,MC,NA,Hydnophora,Hydnophora microconos,NA,South,21,2,pilot,NA
+E108,MC,NA,Hydnophora,Hydnophora microconos,NA,South,31,3,pilot,NA
+C109,MC,NA,Hydnophora,Hydnophora microconos,NA,South,41,4,pilot,NA
+E109,MC,NA,Hydnophora,Hydnophora microconos,NA,South,51,5,pilot,NA
+C110,MC,NA,Hydnophora,Hydnophora microconos,NA,South,A2,A,pilot,NA
+E110,MC,NA,Hydnophora,Hydnophora microconos,NA,South,B2,B,pilot,NA
+C111,MC,NA,Hydnophora,Hydnophora microconos,NA,South,C2,C,pilot,NA
+E111,MC,NA,Hydnophora,Hydnophora microconos,NA,South,D2,D,pilot,NA
+C112,MC,NA,Hydnophora,Hydnophora microconos,NA,South,12,1,pilot,NA
+E112,MC,NA,Hydnophora,Hydnophora microconos,NA,South,22,2,pilot,NA
+C113,MC,NA,Hydnophora,Hydnophora microconos,NA,South,32,3,pilot,NA
+E113,MC,NA,Hydnophora,Hydnophora microconos,NA,South,42,4,pilot,NA
+C114,MC,NA,Hydnophora,Hydnophora microconos,NA,South,52,5,pilot,NA
+E114,MC,NA,Hydnophora,Hydnophora microconos,NA,South,A3,A,pilot,NA
+C115,MC,NA,Hydnophora,Hydnophora microconos,NA,South,B3,B,pilot,NA
+E115,MC,NA,Hydnophora,Hydnophora microconos,NA,South,C3,C,pilot,NA
+C116,MC,NA,Hydnophora,Hydnophora microconos,NA,South,D3,D,pilot,NA
+E116,MC,NA,Hydnophora,Hydnophora microconos,NA,South,13,1,pilot,NA
+C117,MC,NA,Hydnophora,Hydnophora microconos,NA,South,23,2,pilot,NA
+E117,MC,NA,Hydnophora,Hydnophora microconos,NA,South,33,3,pilot,NA
+C118,MC,NA,Hydnophora,Hydnophora microconos,NA,South,43,4,pilot,NA
+E118,MC,NA,Hydnophora,Hydnophora microconos,NA,South,53,5,pilot,NA
+C119,MC,NA,Hydnophora,Hydnophora microconos,NA,South,A4,A,pilot,NA
+E119,MC,NA,Hydnophora,Hydnophora microconos,NA,South,B4,B,pilot,NA
+C120,MC,NA,Hydnophora,Hydnophora microconos,NA,South,C4,C,pilot,NA
+E120,MC,NA,Hydnophora,Hydnophora microconos,NA,South,D4,D,pilot,NA
+C121,MC,NA,Hydnophora,Hydnophora microconos,NA,South,14,1,pilot,NA
+E121,MC,NA,Hydnophora,Hydnophora microconos,NA,South,24,2,pilot,NA
+C122,MC,NA,Hydnophora,Hydnophora microconos,NA,South,34,3,pilot,NA
+E122,MC,NA,Hydnophora,Hydnophora microconos,NA,South,44,4,pilot,NA
+C123,MC,NA,Hydnophora,Hydnophora microconos,NA,South,54,5,pilot,NA
+E123,MC,NA,Hydnophora,Hydnophora microconos,NA,South,A5,A,pilot,NA
+C124,MC,NA,Hydnophora,Hydnophora microconos,NA,South,B5,B,pilot,NA
+E124,MC,NA,Hydnophora,Hydnophora microconos,NA,South,C5,C,pilot,NA
+Negative,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
