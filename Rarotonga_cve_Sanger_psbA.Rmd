@@ -1,0 +1,486 @@
+---
+title: "Rarotonga_cve_Sanger_psbA"
+author: "Rob Lewis"
+date: "26/04/2021"
+output: html_document
+---
+
+```{r}
+library(dplyr)
+library(forcats)
+library(reshape2)
+library(stringr)
+library(tidyr)
+
+library(sangerseqR)
+library(seqinr)
+library(DECIPHER)
+library(Biostrings)
+library(phangorn)
+library(ape)
+
+library(ggplot2)
+library(ggtree)
+library(patchwork)
+# DNA palette
+palette <- c("A" = "#6bb04a", "G" = "#4e76dd", "C" = "#c89232", "T" = "#d14d4b", "N" = "black", "-" = "white")
+
+```
+
+# Custom functions
+
+```{r}
+source("https://raw.githubusercontent.com/nitschkematthew/Free_living_Symbiodiniaceae_HI/master/R/help.R")
+
+read_fasta_df <- function(file = ""){
+    # Read the file line by line
+   fasta <- readLines(file)
+   # Identify header lines
+   ind <- grep(">", fasta)
+   # Identify the sequence lines
+   s <- data.frame(ind = ind, from = ind + 1, to = c((ind - 1)[-1], length(fasta)))
+   # Process sequence lines
+   seqs <- rep(NA, length(ind))
+   for(i in 1:length(ind)) {
+      seqs[i]<-paste(fasta[s$from[i]:s$to[i]], collapse="")
+   }
+   # Create a data frame 
+   tib <- tibble(names = gsub(">", "", fasta[ind]), seqs=seqs)
+   # Return the data frame as a result object from the function
+   return(tib)
+}
+
+write_fasta_df <- function(data, filename){
+  fastaLines = c()
+  for (rowNum in 1:nrow(data)){
+    fastaLines = c(fastaLines, as.character(paste(">", data[rowNum,"names"], sep = "")))
+    fastaLines = c(fastaLines,as.character(data[rowNum,"seqs"]))
+  }
+  fileConn<-file(filename)
+  writeLines(fastaLines, fileConn)
+  close(fileConn)
+}
+```
+
+# Metadata
+
+```{r}
+meta <- read.delim("PSBA_metadata", col.names = c("Sample", "Profile"), header = FALSE)
+```
+
+# Load objects
+```{r}
+long_fwd_rev_C3 <- readRDS("long_fwd_rev_C3.rds")
+
+long_fwd_rev_C1 <- readRDS("long_fwd_rev_C1.rds")
+
+```
+
+# Prep for ML tree
+##C3
+
+```{r}
+# FORWARD
+
+# Import files
+fwd <- DNAStringSet()
+for(i in 1:length(meta$Sample)){
+  seq <- DNAStringSet(as.character(primarySeq(readsangerseq(paste0("HC00140756_psbA_reseq/", meta$Sample[i], "_74_For.ab1")))))
+  names(seq) <- paste0(meta$Sample[i], "_", meta$Profile[i])
+  fwd <- c(fwd, seq)
+}
+
+# Concat study seqs and reference seq
+#fwd <- c(fwd, JQ043677)
+
+# Trim to keep HQ bases (should be highest quality)
+fwd <- fwd %>%
+  DNAStringSet_to_df() %>%
+  mutate(seqs = str_sub(seqs, start = 40, end = 350)) %>%
+  df_to_DNAStringset()
+
+# Filter sequences 
+fwd <- fwd %>%
+  DNAStringSet_to_df() %>%
+  filter(!str_detect(names, "C67_|E82_|E1_|C40|E2_|E39_|E76_")) %>% # Remove the failed samples
+  filter(str_detect(names, "C3ae|JQ043677")) %>% # Select C3profiles and ref seq
+  df_to_DNAStringset()
+
+# Align
+aligned <- AlignSeqs(fwd, verbose = FALSE)
+
+# Write alignment to fasta format
+aligned %>%
+  writeXStringSet("aligned_C3_fwd.fasta")
+
+# Read in sequence dataframe
+aligned <- read_fasta_df("aligned_C3_fwd.fasta") %>%
+  mutate(seqs = str_sub(seqs, start = 10, end = 270)) # TRIM ALIGNMENT HERE (SAME ABOVE) CHECKK
+
+aligned %>%
+  df_to_DNAStringset() %>%
+  writeXStringSet("aligned_C3_fwd.fasta")
+
+# Create profile key
+key <- aligned %>%
+  tibble::rownames_to_column(var = "id") %>%
+  select(id, names)
+
+# Create long dataframe for ggplot
+long_fwd <- str_split(aligned$seqs, "") %>%
+  reshape2::melt() %>%
+  group_by(L1) %>%
+  mutate(x = row_number(),
+         L1 = as.character(L1)) %>%
+  left_join(., key, by = c("L1" = "id")) %>%
+  ungroup() 
+
+# Plot alignment
+ggplot(long_fwd, aes(y = names, x = x)) +
+      geom_tile(aes(fill = value), size = 2) +
+      scale_fill_manual(values = palette) +
+      theme(aspect.ratio = 0.5,
+            axis.title.y = element_blank()) +
+      scale_x_continuous(expand = c(0, 0))
+
+# REVERSE
+
+# Reverse seqs
+rev <- DNAStringSet()
+for(i in 1:length(meta$Sample)){
+  seq <- DNAStringSet(as.character(primarySeq(readsangerseq(paste0("HC00140756_psbA_reseq/", meta$Sample[i], "_78_Rev.ab1")))))
+  seq <- reverseComplement(seq)
+  names(seq) <- paste0(meta$Sample[i], "_", meta$Profile[i])
+  rev <- c(rev, seq)
+}
+
+# Concat study seqs and reference seq
+#rev <- c(rev, JQ043677)
+
+# Filter sequences 
+rev <- rev %>%
+  DNAStringSet_to_df() %>%
+  filter(!str_detect(names, "C67_|E82_|E1_|C40|E2_|E39_|E76_")) %>% # Remove the failed samples
+  filter(str_detect(names, "C3ae|JQ043677")) %>% # Select C3profiles and ref seq
+  df_to_DNAStringset()
+
+# Align
+aligned <- AlignSeqs(rev, verbose = FALSE)
+
+# Write alignment to fasta format
+aligned %>%
+  writeXStringSet("aligned_C3_rev.fasta")
+
+# Read in sequence dataframe
+aligned <- read_fasta_df("aligned_C3_rev.fasta") %>%
+  mutate(seqs = str_sub(seqs, start = 1820, end = 2170)) # TRIM ALIGNMENT HERE
+
+aligned %>%
+  df_to_DNAStringset() %>%
+  writeXStringSet("aligned_C3_rev.fasta")
+
+# Create profile key
+key <- aligned %>%
+  tibble::rownames_to_column(var = "id") %>%
+  select(id, names)
+
+# Create long dataframe for ggplot
+long_rev <- str_split(aligned$seqs, "") %>%
+  reshape2::melt() %>%
+  group_by(L1) %>%
+  mutate(x = row_number(),
+         L1 = as.character(L1)) %>%
+  left_join(., key, by = c("L1" = "id")) %>%
+  ungroup()
+
+# Plot alignment
+ggplot(long_rev, aes(y = names, x = x)) +
+      geom_tile(aes(fill = value), size = 2) +
+      scale_fill_manual(values = palette) +
+      theme(aspect.ratio = 0.5,
+            axis.title.y = element_blank()) +
+      scale_x_continuous(expand = c(0, 0))
+
+
+# Concatenate alignments
+fwd_al <- read_fasta_df("aligned_C3_fwd.fasta")
+rev_al <- read_fasta_df("aligned_C3_rev.fasta")
+fwd_rev_al <- left_join(fwd_al, rev_al, by = "names", suffix = c("fwd", "rev")) %>%
+  mutate(len_fwd = str_length(seqsfwd), len_rev = str_length(seqsrev))
+
+# Concatenate long dfs for ggplot
+
+long_fwd_rev_C3 <- rbind(long_fwd, (long_rev %>% mutate(x = x + 261)))
+
+# partition file
+# DNA, gene1=1-306
+# DNA, gene2=307-687
+
+fwd_rev_al <- fwd_rev_al %>%
+  unite(col = "seqs", seqsfwd, seqsrev, sep = "", remove = TRUE) %>%
+  select(names, seqs)
+
+fwd_rev_al %>% write_fasta_df(file = "fwd_rev_c3_aligned_trimmed.fasta")
+```
+
+### C3 raxML tree
+
+```{r}
+
+C3_tree <- read.tree("RAxML_C3_result.result")
+
+gg_tree <- ggtree(C3_tree)
+gg_tree$data <- gg_tree$data %>%
+  separate(label, into = c("sample", "profile"), sep = "_", remove = FALSE) %>%
+  arrange(desc(y)) %>%
+  mutate(label = str_replace_all(label, "[.]", "-")) %>%
+      mutate(label = str_replace_all(label, "C3f-C3-C50a-C3fl-C3ae-C3fm-C50q-C3b", "C3f/C3-C50a-C3fl-C3ae-C3fm-C50q-C3b")) %>%
+      mutate(label = str_replace_all(label, "C3f-C3fl-C3ae-C3-C3bj-C50a-C3h", "C3f/C3fl-C3ae-C3-C3bj-C50a-C3h"))
+
+p1 <- gg_tree + 
+      geom_tiplab(aes(colour = profile, align = TRUE), size = 3.5, offset = 0.001) +
+      scale_color_manual(values = c("green4",  "olivedrab3", "mediumseagreen", "darkseagreen4")) +
+      geom_treescale(y = 12.5, x = 0) + 
+      coord_cartesian(clip = 'off') + 
+      theme_tree2(plot.margin = margin(6, 300, 6, 6)) +
+      theme(legend.position = "none", aspect.ratio = 1, 
+            axis.text.x = element_text(size = 12))
+
+order <- rev(gg_tree$data$label) %>% str_subset(pattern = "C|E|J")
+
+p2 <- long_fwd_rev_C3 %>%
+      mutate(names = str_replace_all(names, "[.]", "-")) %>%
+      mutate(names = str_replace_all(names, "C3f-C3-C50a-C3fl-C3ae-C3fm-C50q-C3b", "C3f/C3-C50a-C3fl-C3ae-C3fm-C50q-C3b")) %>%
+      mutate(names = str_replace_all(names, "C3f-C3fl-C3ae-C3-C3bj-C50a-C3h", "C3f/C3fl-C3ae-C3-C3bj-C50a-C3h")) %>%
+      mutate(names = factor(names, levels = order)) %>%
+      ggplot(aes(y = names, x = x)) +
+            geom_tile(aes(fill = value), size = 2) +
+            scale_fill_manual(values = palette) +
+            theme(aspect.ratio = 0.5,
+                  axis.title.y = element_blank(),
+                  axis.title.x = element_blank(),
+                  axis.ticks = element_blank(), 
+                  axis.text.y = element_text(colour = c("green4", "olivedrab3", "green4", "olivedrab3", "green4", "olivedrab3","green4", "green4", "olivedrab3", "darkseagreen4", "olivedrab3", "mediumseagreen", "mediumseagreen", "mediumseagreen"), size = 10),
+                  axis.text.x = element_text(size = 12)) +
+            scale_x_continuous(expand = c(0, 0))
+      
+
+p1 + p2
+#ggsave("C3_psba_tree_w_alignment.pdf", units = "in", width = 15, height = 4)
+
+```
+
+
+## C1
+
+```{r}
+# FORWARD
+
+# Outgroup sequence C1
+JQ043677 <- DNAStringSet("TGATGTGGTTAGGGTACCCTAATATTGGCCTGTTTTAGGTGCCTCTATGGGTACTTCTATGGGTACCAGCCTAATAATTTTGACATCAACCCTTTGATTTAGGGTACCCAGCATAGTACCCATAAGGGGTGCCCTATTCCCCACACCCAAACAGGTACCCTAATTTAGACCAGAATTTAGGCCACATCATAAATTAGTGAGTTTTTTCACCCCGAAGGGATGGGTGCCCCTTGTGGGTACCCATATGCCCGCAGGGCATTGAGGTCCACGAAGTGTGACCGTTAATTTTGGCCAAAAAAGGGTGCCGCTAATTTTGGCCTAAACTGCGACTATTTTGGCCAAAATTGCGACATGTGTCCTCGCGCACACGCGCACACGTATTAAAAAGATCGCGACTTATCGTGACGTAAATGGGTGCCCCTGTGGGGCACCCATATGCACCACCCTTTGGGTGGTGCATTGGAGCCGGGAACGAGCCGAAGGCGAGTGGACGTGCGACCACGAAGAAAAGAAAAAGAAATCGCGACCTATAATGGGTGCCCCTTTGGGGCACCCATATGCACACCCCGAAGGGGTGTGCATTAATGGGCTGGGTGCCCTACCCAGCCCATATGGGCCCACGCTTCGCGGGGCCCATAACGGCCCTTCGGGCCTTCAAAAAAAAAAAAGGTAATGATGGGTGCCAGTAACCGAGCAAAATAACCAAGCAAATCAACCTGCAGGCAATAATGGCCAAAACCTGTGCGAACCAAGTGTGAATCTGCGGCTATGTCTCGGGGTGTGCATATGCCTGCTGGCTGCCTGCATGCCACCTGCACATGTGCCCTCCACCCCTACCCCTCCTCCCAACAGAAGAATCTGGCCAAAATTATCATCACAATCTTTTGCAGGTGATTGATTACTACCAATGAAGAACACATCTTACTATCAACTCAACTTACTTGGTAATGTCATAGGATTCGTGCTATCCACAACAAATCGTCTCTACATTGGGTGCTTTGGTATCCTAATGTTCCCTCTTTT")
+
+JQ043677 <- DNAStringSet(JQ043677)
+names(JQ043677) <- "JQ043677"
+
+# Import files
+fwd <- DNAStringSet()
+for(i in 1:length(meta$Sample)){
+  seq <- DNAStringSet(as.character(primarySeq(readsangerseq(paste0("HC00140756_psbA_reseq/", meta$Sample[i], "_74_For.ab1")))))
+  names(seq) <- paste0(meta$Sample[i], "_", meta$Profile[i])
+  fwd <- c(fwd, seq)
+}
+
+# Concat study seqs and reference seq
+fwd <- c(fwd, JQ043677)
+
+# Trim to keep HQ bases (should be highest quality)
+fwd <- fwd %>%
+  DNAStringSet_to_df() %>%
+  mutate(seqs = str_sub(seqs, start = 40, end = 350)) %>%
+  df_to_DNAStringset()
+
+# Filter sequences 
+fwd <- fwd %>%
+  DNAStringSet_to_df() %>%
+  filter(!str_detect(names, "C67_|E82_|E1_|C40|E2_|E39_|E76_")) %>% # Remove the failed samples
+  filter(str_detect(names, "C72k|JQ043677")) %>% # Select C1 profiles and ref seq
+  df_to_DNAStringset()
+
+# Align
+aligned <- AlignSeqs(fwd, verbose = FALSE)
+
+# Write alignment to fasta format
+aligned %>%
+  writeXStringSet("aligned_C1_fwd.fasta")
+
+# Read in sequence dataframe
+aligned <- read_fasta_df("aligned_C1_fwd.fasta") %>%
+  mutate(seqs = str_sub(seqs, start = 0, end = 365)) # TRIM ALIGNMENT HERE (SAME ABOVE)
+
+aligned %>%
+  df_to_DNAStringset() %>%
+  writeXStringSet("aligned_C1_fwd.fasta")
+
+#read manual aligment FASTA
+
+aligned <- read_fasta_df("aligned_C1_fwd_manual.fasta")
+
+# Create profile key
+key <- aligned %>%
+  tibble::rownames_to_column(var = "id") %>%
+  select(id, names)
+
+# Create long dataframe for ggplot
+long_fwd <- str_split(aligned$seqs, "") %>%
+  reshape2::melt() %>%
+  group_by(L1) %>%
+  mutate(x = row_number(),
+         L1 = as.character(L1)) %>%
+  left_join(., key, by = c("L1" = "id")) %>%
+  ungroup() 
+
+# Plot alignment
+ggplot(long_fwd, aes(y = names, x = x)) +
+      geom_tile(aes(fill = value), size = 2) +
+      scale_fill_manual(values = palette) +
+      theme(aspect.ratio = 0.5,
+            axis.title.y = element_blank()) +
+      scale_x_continuous(expand = c(0, 0))
+
+# REVERSE
+
+# Reverse seqs
+rev <- DNAStringSet()
+for(i in 1:length(meta$Sample)){
+  seq <- DNAStringSet(as.character(primarySeq(readsangerseq(paste0("HC00140756_psbA_reseq/", meta$Sample[i], "_78_Rev.ab1")))))
+  seq <- reverseComplement(seq)
+  names(seq) <- paste0(meta$Sample[i], "_", meta$Profile[i])
+  rev <- c(rev, seq)
+}
+
+# Concat study seqs and reference seq
+rev <- c(rev, JQ043677)
+
+# Filter sequences 
+rev <- rev %>%
+  DNAStringSet_to_df() %>%
+  filter(!str_detect(names, "C67_|E82_|E1_|C40|E2_|E39_|E76_")) %>% # Remove the failed samples
+  filter(str_detect(names, "C72k|JQ043677")) %>% # Select C1 profiles and ref seq
+  df_to_DNAStringset()
+
+# Align
+aligned <- AlignSeqs(rev, verbose = FALSE)
+
+# Write alignment to fasta format
+aligned %>%
+  writeXStringSet("aligned_C1_rev.fasta")
+
+# Read in sequence dataframe
+aligned <- read_fasta_df("aligned_C1_rev.fasta") %>%
+  mutate(seqs = str_sub(seqs, start = 1840, end = 2120)) # TRIM ALIGNMENT HERE
+
+aligned %>%
+  df_to_DNAStringset() %>%
+  writeXStringSet("aligned_C1_rev.fasta")
+
+# Create profile key
+key <- aligned %>%
+  tibble::rownames_to_column(var = "id") %>%
+  select(id, names)
+
+# Create long dataframe for ggplot
+long_rev <- str_split(aligned$seqs, "") %>%
+  reshape2::melt() %>%
+  group_by(L1) %>%
+  mutate(x = row_number(),
+         L1 = as.character(L1)) %>%
+  left_join(., key, by = c("L1" = "id")) %>%
+  ungroup()
+
+# Plot alignment
+ggplot(long_rev, aes(y = names, x = x)) +
+      geom_tile(aes(fill = value), size = 2) +
+      scale_fill_manual(values = palette) +
+      theme(aspect.ratio = 0.5,
+            axis.title.y = element_blank()) +
+      scale_x_continuous(expand = c(0, 0))
+
+
+# Concatenate alignments
+fwd_al <- read_fasta_df("aligned_C1_fwd.fasta") #corrected C59 alignment
+rev_al <- read_fasta_df("aligned_C1_rev.fasta")
+fwd_rev_al <- left_join(fwd_al, rev_al, by = "names", suffix = c("fwd", "rev")) %>%
+  mutate(len_fwd = str_length(seqsfwd), len_rev = str_length(seqsrev))
+#correct C59 for aligment
+
+# Concatenate long dfs for ggplot
+
+long_fwd_rev_C1 <- rbind(long_fwd, (long_rev %>% mutate(x = x + 306)))
+
+# partition file
+# DNA, gene1=1-306
+# DNA, gene2=307-687
+
+fwd_rev_al <- fwd_rev_al %>%
+  unite(col = "seqs", seqsfwd, seqsrev, sep = "", remove = TRUE) %>%
+  select(names, seqs)
+
+fwd_rev_al %>% write_fasta_df(file = "fwd_rev_c1_aligned_trimmed.fasta")
+
+
+```
+
+### C1 raxML tree
+
+```{r}
+
+C1_tree <- read.tree("RAxML_C1_result.result")
+
+gg_tree <- ggtree(C1_tree)
+gg_tree$data <- gg_tree$data %>%
+  separate(label, into = c("sample", "profile"), sep = "_", remove = FALSE) %>%
+  arrange(desc(y)) %>%
+  mutate(label = str_replace_all(label, "[.]", "-")) %>%
+      mutate(label = str_replace_all(label, "c59", "C59")) %>%
+      mutate(label = str_replace_all(label, "C1-C3-C1c-C1b-C72k-C1w", "C1/C3-C1c-C1b-C72k-C1w")) %>%
+      mutate(label = str_replace_all(label, "C1-C1b-C3-C1u-C1bo", "C1/C1b/C3-C1u-C1bo")) %>%
+      mutate(label = str_replace_all(label, "C1-C1c-C1b", "C1/C1c-C1b")) %>%
+      mutate(label = str_replace_all(label, "C1-C42.2-C3-C1b", "C1/C42.2/C3-C1b"))
+
+p1 <- gg_tree + 
+      geom_tiplab(aes(colour = profile, align = TRUE), size = 4.5, offset = 0.01) + 
+      scale_colour_manual(values = c("steelblue2", "navyblue")) +
+      geom_treescale(y = 9, x = 0) + 
+      coord_cartesian(clip = 'off') + 
+      theme_tree2(plot.margin = margin(6, 300, 6, 6)) +
+      theme(legend.position = "none", aspect.ratio = 1, 
+            axis.text.x = element_text(size = 12))
+
+order <- rev(gg_tree$data$label) %>% str_subset(pattern = "C|E|J")
+
+p2 <- long_fwd_rev_C1 %>%
+      mutate(names = str_replace_all(names, "[.]", "-")) %>%
+      mutate(names = str_replace_all(names, "c59", "C59")) %>%
+      mutate(names = str_replace_all(names, "C1-C3-C1c-C1b-C72k-C1w", "C1/C3-C1c-C1b-C72k-C1w")) %>%
+      mutate(names = str_replace_all(names, "C1-C1b-C3-C1u-C1bo", "C1/C1b/C3-C1u-C1bo")) %>%
+      mutate(names = str_replace_all(names, "C1-C1c-C1b", "C1/C1c-C1b")) %>%
+      mutate(names = str_replace_all(names, "C1-C42.2-C3-C1b", "C1/C42.2/C3-C1b")) %>%
+      mutate(names = factor(names, levels = order)) %>%
+        ggplot(aes(y = names, x = x)) +
+            geom_tile(aes(fill = value), size = 2) +
+            scale_fill_manual(values = palette) +
+            theme(aspect.ratio = 0.5,
+                  axis.title.y = element_blank(),
+                  axis.title.x = element_blank(),
+                  axis.ticks = element_blank(),
+                  axis.text.y = element_text(colour = c("navyblue", "steelblue2", "steelblue2", "navyblue", "steelblue2", "steelblue2", "navyblue", "navyblue", "steelblue2", "black"), size = 13),
+                  axis.text.x = element_text(size = 12)) +
+            scale_x_continuous(expand = c(0, 0))
+      
+p1 + p2
+
+#ggsave("C1_psba_tree_w_alignment.pdf", units = "in", width = 17, height = 4)
+
+
+```
+
