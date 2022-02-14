@@ -66,6 +66,8 @@ ps <- readRDS("ps.RDS")
 
 melt <- readRDS("melt.RDS")
 
+melt_4_deseq2 <- readRDS("melt_4_deseq2.RDS")
+
 ps_sub <- readRDS("ps_sub_w_kmer_tree.rds")
 
 dynamQ_max_EnormEk <- readRDS("dynamQ_max_EnormEk.rds")
@@ -600,6 +602,8 @@ rare_lm_onemQ <- long_dist_rare_photo %>% group_by(species) %>% do(tidy(lm(uni ~
 rare_lm_total_reflectance <- long_dist_rare_photo %>% group_by(species) %>% do(tidy(lm(uni ~ delta_total_reflectance, data = .))) %>%
   filter(term == "delta_total_reflectance")
 
+rare_lm_all <- rbind(rare_lm_Ek, rare_lm_FqFmmax, rare_lm_onemC, rare_lm_onemQ)
+
 #adjust p-values
 
 get_adjusted_pval <- function(df, pAdjustMethod = "BH", ...) {
@@ -612,11 +616,16 @@ get_adjusted_pval <- function(df, pAdjustMethod = "BH", ...) {
     }
 }
 
+p_adjusted_all <- get_adjusted_pval(rare_lm_all, pAdjustMethod = "BH") %>%
+  filter(adjust.pvalue < 0.05)
+
 p_adjusted_Ek <- get_adjusted_pval(rare_lm_Ek, pAdjustMethod = "BH")
 p_adjusted_FqFmmax <- get_adjusted_pval(rare_lm_FqFmmax, pAdjustMethod = "BH")
 p_adjusted_onemC <- get_adjusted_pval(rare_lm_onemC, pAdjustMethod = "BH")
 p_adjusted_onemQ <- get_adjusted_pval(rare_lm_onemQ, pAdjustMethod = "BH")
 p_adjusted_total_reflectance <- get_adjusted_pval(rare_lm_total_reflectance, pAdjustMethod = "BH")
+
+
 
 p_adjust_df <- rbind(p_adjusted_Ek, p_adjusted_FqFmmax, p_adjusted_onemC, p_adjusted_onemQ, p_adjusted_total_reflectance) %>%
   filter(adjust.pvalue < 0.05)
@@ -691,6 +700,14 @@ melt <- psmelt(ps) %>%
 
 saveRDS(melt, "melt.RDS")
 
+melt_4_deseq2 <- psmelt(ps) %>%
+  mutate(Species = as.character(Species)) %>%
+  mutate(Species = case_when(str_detect(Species, "|") ~ word(as.character(Species), 1, sep = "\\|"),
+         TRUE ~ Species)) %>%
+  mutate(Species = as.factor(Species)) %>%
+  filter(Family == "Symbiodiniaceae", project == "c_v_e")
+
+saveRDS(melt_4_deseq2, "melt_4_deseq2.RDS")
 
 explorer <- melt %>% 
   summarise(sum(Abundance), sum(n_distinct(OTU)))
@@ -1108,7 +1125,7 @@ for(i in 1:length(species_list)) {
   estszef <- estimateSizeFactors(ps_ds2, geoMeans = geoMeans)
   ps_ds2 <- DESeq(estszef, fitType = "parametric")
   res.w.s <- results(ps_ds2, cooksCutoff = FALSE, contrast = c("habitat", "exposed", "cryptic"), tidy = TRUE) %>%
-  filter(padj < alpha) %>%
+  select(-padj) %>%
   left_join(., restax, by = c("row" = "ASVID")) %>%
   mutate(test = "exposed_vs_cryptic") %>% 
   mutate(species = species_list[i])
@@ -1117,6 +1134,12 @@ for(i in 1:length(species_list)) {
 
 }
 
+#adjust pvalues for all ASV tests across all species 
+
+differential_abundance <- differential_abundance %>%
+  ungroup() %>%
+  mutate(padj = p.adjust(pvalue, method = "BH")) %>%
+  filter(padj < 0.05)
 
 differential_abundance_list <- differential_abundance %>%
   select(row, baseMean, log2FoldChange, species) %>%
@@ -1124,7 +1147,7 @@ differential_abundance_list <- differential_abundance %>%
 
 species_list <- c("Acropora cf anthocercis","Acropora elseyi","Acropora humilis","Acropora hyacinthus","Acropora nasuta","Acropora retusa","Acropora verweyi","Favia stelligera","Leptoria phrygia","Galaxea fascicularis","Hydnophora exesa","Hydnophora microconos","Pavona duerdeni","Psammocora stellata","Psammocora obtusangula","Leptastrea purpurea","Pocillopora meandrina","Porites lutea cf. lobata")
 
-melt_sub <- melt %>%
+melt_sub <- melt_4_deseq2 %>%
   select(OTU, Genus, Species, Sample, Abundance, habitat, species)
 
 differential_ASV <- data.frame()
@@ -1145,7 +1168,7 @@ for(i in 1:length(species_list)) {
   distinct() %>%
   pivot_wider(names_from = "habitat", values_from = "n_absent") %>%
   group_by(OTU) %>%
-  filter(exposed <= 2 | cryptic <= 2)
+  filter(exposed <= 1 | cryptic <= 1)
   
 
 differential_ASV_i_corrected <- differential_ASV_i %>%
@@ -1200,9 +1223,9 @@ differential_ASV %>%
   select(OTU, niche) %>%
   distinct()
 
-differential_abundance_freq %>%
-  ungroup() %>%
-  summarise(sum(niche == "Cryptic_only"), sum(niche == "Exposed_only"), sum(niche == "Both"))
+# differential_abundance_freq %>%
+#   ungroup() %>%
+#  summarise(sum(niche == "Cryptic_only"), sum(niche == "Exposed_only"), sum(niche == "Both"))
 
 ASV_order <- differential_ASV %>%
   ungroup() %>%
@@ -1210,6 +1233,9 @@ ASV_order <- differential_ASV %>%
   select(OTU) %>%
   distinct() %>%
   as.list
+
+ Deseq2_pal <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+ names(Deseq2_pal) <- c("Acropora cf anthocercis", "Acropora elseyi", "Acropora hyacinthus", "Hydnophora microconos", "Porites lutea cf. lobata", "Acropora nasuta", "Favia stelligera")
   
 differential_ASV %>%
   ungroup() %>%
@@ -1219,7 +1245,7 @@ differential_ASV %>%
   geom_point(size = 3) +
   guides(shape = guide_legend(order=1)) +
   scale_shape_manual(values = c(exposed = 22, cryptic = 21), labels = c("Exposed", "Shaded")) +
-  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442"), 
+  scale_fill_manual(values = Deseq2_pal, 
                     name = "Species", 
                     guide = guide_legend(override.aes = aes(shape=21), 
                     label.theme = element_text(size = 10, face = "italic"))) +
@@ -1227,7 +1253,7 @@ differential_ASV %>%
   theme_bw() + 
   theme(panel.border = element_rect(colour = "black", fill=NA), panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
-  theme(axis.text.x = element_blank(), axis.ticks.x=element_blank()) +
+  theme(axis.text.x = element_blank()) +
   #facet_wrap(~species, scales = "free_x", ncol = 2) +
   xlab("ASV") +
   ylab("Log2 fold change") +
@@ -1236,26 +1262,28 @@ differential_ASV %>%
   
 
 
-ggsave("Fig_differential_abundance.pdf", units = "in", width = 6, height = 4)
+ggsave("Fig_differential_abundance.pdf", units = "in", width = 7, height = 5)
 
 
 ```
+
 ## Symportal post-MED
 
 ```{r}
-post_MED_count_matrix <- post_MED_abs %>% 
-  filter(project == "c_v_e") %>%
-  select(seq_name, sample_ID, Abundance) %>%
-  pivot_wider(names_from = sample_ID, values_from = Abundance) %>%
-  tibble::column_to_rownames(var = "seq_name") %>%
-  replace(is.na(.), 0)
-
-post_MED_col_data <- post_MED_abs %>% 
-  filter(project == "c_v_e") %>%
-  select(sample_ID, habitat, species) %>%
-  distinct() %>%
-  mutate(habitat = as.factor(habitat), species = as.factor(species)) %>%
-  tibble::column_to_rownames(var = "sample_ID")
+# post_MED_count_matrix <- post_MED_abs %>% 
+#   filter(project == "c_v_e") %>%
+#   select(seq_name, sample_ID, Abundance) %>%
+#   pivot_wider(names_from = sample_ID, values_from = Abundance) %>%
+#   tibble::column_to_rownames(var = "seq_name") %>%
+#   replace(is.na(.), 0)
+# 
+# 
+# post_MED_col_data <- post_MED_abs %>% 
+#   filter(project == "c_v_e") %>%
+#   select(sample_ID, habitat, species) %>%
+#   distinct() %>%
+#   mutate(habitat = as.factor(habitat), species = as.factor(species)) %>%
+#   tibble::column_to_rownames(var = "sample_ID")
 
 
 
@@ -1275,20 +1303,20 @@ differential_abundance_MED <- data.frame()
   
 for(i in 1:length(species_list)) {
 
-  MED_ds2 <- DESeqDataSetFromMatrix(countData = (post_MED_abs %>% filter(project == "c_v_e") %>% filter(species == species_list[i]) %>% select(seq_name, sample_ID, Abundance) %>% pivot_wider(names_from = sample_ID, values_from = Abundance) %>% tibble::column_to_rownames(var = "seq_name") %>% replace(is.na(.), 0)), 
-                                    colData = (post_MED_abs %>% filter(project == "c_v_e") %>% filter(species == species[i]) %>% select(sample_ID, habitat, species) %>% distinct() %>% mutate(habitat = as.factor(habitat), species = as.factor(species)) %>% tibble::column_to_rownames(var = "sample_ID")), 
+MED_ds2 <- DESeqDataSetFromMatrix(countData = (post_MED_abs %>% filter(project == "c_v_e") %>% filter(species == species_list[i]) %>% select(seq_name, sample_ID, Abundance) %>% pivot_wider(names_from = sample_ID, values_from = Abundance) %>% tibble::column_to_rownames(var = "seq_name") %>% replace(is.na(.), 0)), 
+                                    colData = (post_MED_abs %>% filter(project == "c_v_e") %>% filter(species == species_list[i]) %>% select(sample_ID, habitat, species) %>% distinct() %>% mutate(habitat = as.factor(habitat), species = as.factor(species)) %>% tibble::column_to_rownames(var = "sample_ID")), 
                                     design = ~ habitat)
   
   geoMeans <- apply(counts(MED_ds2), 1, gm_mean)
   estszef <- estimateSizeFactors(MED_ds2, geoMeans = geoMeans)
   MED_ds2 <- DESeq(estszef, fitType = "parametric")
   res.w.s <- results(MED_ds2, cooksCutoff = FALSE, contrast = c("habitat", "exposed", "cryptic"), tidy = TRUE) %>%
-  filter(padj < alpha) %>%
+  select(-padj) %>%
   left_join(., restax, by = c("row" = "ASVID")) %>%
   mutate(test = "exposed_vs_cryptic") %>% 
   mutate(species = species_list[i])
 
-  differential_abundance_MED <- rbind(res.w.s, differential_abundance_MED)
+    differential_abundance_MED <- rbind(res.w.s, differential_abundance_MED)
 
 }
 
@@ -1301,7 +1329,7 @@ MED_ds2 <- DESeqDataSetFromMatrix(countData = (post_MED_abs %>% filter(project =
   estszef <- estimateSizeFactors(MED_ds2, geoMeans = geoMeans)
   MED_ds2 <- DESeq(estszef, fitType = "parametric")
   res.w.s <- results(MED_ds2, cooksCutoff = FALSE, contrast = c("habitat", "exposed", "cryptic"), tidy = TRUE) %>%
-  filter(padj < alpha) %>%
+  select(-padj) %>%
   left_join(., restax, by = c("row" = "ASVID")) %>%
   mutate(test = "exposed_vs_cryptic") %>% 
   mutate(species = "Echinopora gemmacea")
@@ -1316,12 +1344,20 @@ MED_ds2 <- DESeqDataSetFromMatrix(countData = (post_MED_abs %>% filter(project =
   estszef <- estimateSizeFactors(MED_ds2, geoMeans = geoMeans)
   MED_ds2 <- DESeq(estszef, fitType = "parametric")
   res.w.s <- results(MED_ds2, cooksCutoff = FALSE, contrast = c("habitat", "exposed", "cryptic"), tidy = TRUE) %>%
-  filter(padj < alpha) %>%
+  select(-padj) %>%
   left_join(., restax, by = c("row" = "ASVID")) %>%
   mutate(test = "exposed_vs_cryptic") %>% 
   mutate(species = "Pocillopora damicornis")
 
     differential_abundance_MED <- rbind(res.w.s, differential_abundance_MED)
+
+    
+#adjust pvalues for all ASV tests across all species 
+
+differential_abundance_MED <- differential_abundance_MED %>%
+  ungroup() %>%
+  mutate(padj = p.adjust(pvalue, method = "BH")) %>%
+  filter(padj < 0.05)
 
 #save df
 saveRDS(differential_abundance_MED, "differential_abundance_MED.rds")
@@ -1356,7 +1392,7 @@ for(i in 1:length(species_list)) {
   distinct() %>%
   pivot_wider(names_from = "habitat", values_from = "n_absent") %>%
   group_by(seq) %>%
-  filter(exposed <= 2 | cryptic <= 2)
+  filter(exposed <= 1 | cryptic <= 1)
   
 
 differential_MED_i_corrected <- differential_MED_i %>%
@@ -1399,7 +1435,11 @@ MED_order <- differential_MED %>%
   select(seq) %>%
   distinct() %>%
   as.list
+
+Deseq2_pal <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+names(Deseq2_pal) <- c("Acropora cf anthocercis", "Acropora elseyi", "Acropora hyacinthus", "Hydnophora microconos", "Porites lutea cf. lobata", "Acropora nasuta", "Favia stelligera")
   
+
 differential_MED %>%
   ungroup() %>%
   rename(Species = species) %>%
@@ -1408,21 +1448,19 @@ differential_MED %>%
   ggplot(aes(x = seq, y = log2FoldChange, shape = Direction, fill = Species)) +
   geom_point(size = 3) +
   guides(shape = guide_legend(order=1)) +
-  scale_shape_manual(values = c(cryptic = 21, exposed = 22), labels = c("Shaded", "Exposed")) +
-  scale_fill_manual(values=c("#E69F00", "#CC79A7", "#009E73"),  
+  scale_shape_manual(values = c(exposed = 22, cryptic = 21), labels = c("Exposed", "Shaded")) +
+  scale_fill_manual(values = Deseq2_pal,  
                     guide = guide_legend(override.aes = aes(shape=21), label.theme = element_text(size = 10, face = "italic"))) +
   geom_abline(intercept = 0, slope = 0, linetype = 3) +
   theme_bw() + 
   theme(panel.border = element_rect(colour = "black", fill=NA), panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
-  theme(axis.text.x = element_blank(), axis.ticks.x=element_blank()) +
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"), axis.text.x = element_blank()) +
   xlab("Post-MED sequence") +
   ylab("Log2 fold change") +
-  theme(strip.text = element_text(face = "italic")) +
-  scale_x_discrete(breaks=1:10)
+  theme(strip.text = element_text(face = "italic"))
 
 
-ggsave("Fig_differential_abundance_MED.pdf", units = "in", width = 6, height = 4)
+ggsave("Fig_differential_abundance_MED.pdf", units = "in", width = 7, height = 5)
 ```
 
 
