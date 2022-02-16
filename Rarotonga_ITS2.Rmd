@@ -400,8 +400,13 @@ saveRDS(ps_sub, "ps_sub_w_kmer_tree.rds")
 #pair_wise photobiology vs UniFrac
 
 ```{r}
+#filter for only species with significantly differentially abundant sequnece variants
+ps_hetero_ITS2 <- ps_sub %>%
+  subset_samples(species == "Acropora cf anthocercis" | species == "Acropora elseyi" | species == "Acropora hyacinthus" | species == "Hydnophora microconos" | species == "Porites lutea cf. lobata" | species == "Acropora nasuta" | species == "Favia stelligera")
+
 # Transform abundances
-ps.hell <- microbiome::transform(ps_sub, transform = "hellinger", target = "OTU", shift = 1, scale = 1)
+
+ps.hell <- microbiome::transform(ps_hetero_ITS2, transform = "hellinger", target = "OTU", shift = 1, scale = 1)
 
 #Create distance matrix
 ps.uni_c_v_e <- phyloseq::distance(ps.hell, method = "wunifrac") %>% as.matrix()  
@@ -418,11 +423,14 @@ long_dist <- reshape2::melt(ps.uni_c_v_e)[melt(lower.tri(ps.uni_c_v_e))$value,] 
 
 pair_wise_total_brightness <- left_join((total_brightness %>% rename(Sample = sampleID)), (melt %>% select(Sample, pair) %>% distinct()), by = "Sample") %>% 
   filter(Sample != "C49" & Sample != "E49" & Sample != "C96" & Sample != "E96") %>%
-  select(total_reflectance, pair, habitat) %>% pivot_wider(values_from = total_reflectance, names_from = habitat) %>% rename(total_reflectance_cryptic = cryptic, total_reflectance_exposed = exposed)
+  filter(species == "Acropora cf anthocercis" | species == "Acropora elseyi" | species == "Acropora hyacinthus" | species == "Hydnophora microconos" | species == "Porites lutea cf. lobata" | species == "Acropora nasuta" | species == "Favia stelligera") %>%
+  select(total_reflectance, pair, habitat) %>% pivot_wider(values_from = total_reflectance, names_from = habitat) %>% 
+  rename(total_reflectance_cryptic = cryptic, total_reflectance_exposed = exposed)
 
 pair_wise_photo <- pair_wise_photo %>%
   mutate(pair = as.numeric(pair)) %>%
-  filter(pair != 96 & pair != 49)
+  filter(pair != 96 & pair != 49) %>%
+  filter(species == "Acropora cf anthocercis" | species == "Acropora elseyi" | species == "Acropora hyacinthus" | species == "Hydnophora microconos" | species == "Porites lutea cf. lobata" | species == "Acropora nasuta" | species == "Favia stelligera")
 
 pair_wise_photo <- left_join(pair_wise_photo, pair_wise_total_brightness, by = "pair")
 
@@ -467,6 +475,41 @@ ggplot(long_dist_photo_Ek_FqFmmax, aes(uni, delta_Ek)) +
   geom_point(aes(col = species)) +
   geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
   facet_wrap(~species)
+
+
+lm_Ek <- long_dist_photo_Ek_FqFmmax %>% group_by(species) %>% do(tidy(lm(uni ~ delta_Ek, data = .))) %>%
+  filter(term == "delta_Ek")
+
+lm_FqFmmax <- long_dist_photo_Ek_FqFmmax %>% group_by(species) %>% do(tidy(lm(uni ~ delta_FqFmmax, data = .))) %>%
+  filter(term == "delta_FqFmmax") 
+
+lm_onemC <- long_dist_photo %>% group_by(species) %>% do(tidy(lm(uni ~ delta_onemC, data = .))) %>%
+  filter(term == "delta_onemC") 
+
+lm_onemQ <- long_dist_photo %>% group_by(species) %>% do(tidy(lm(uni ~ delta_onemQ, data = .))) %>%
+  filter(term == "delta_onemQ")
+
+lm_total_reflectance <- long_dist_photo %>% group_by(species) %>% do(tidy(lm(uni ~ delta_total_reflectance, data = .))) %>%
+  filter(term == "delta_total_reflectance")
+
+lm_all <- rbind(lm_Ek, lm_FqFmmax, lm_onemC, lm_onemQ)
+
+#adjust p-values
+
+get_adjusted_pval <- function(df, pAdjustMethod = "BH", ...) {
+    if(is.null(df$p.value)) {
+        stop("p-value is required")
+    } else {
+        p <- df$p.value
+        df$adjust.pvalue <- p.adjust(p, method = pAdjustMethod)
+        df
+    }
+}
+
+p_adjusted_all <- get_adjusted_pval(lm_all, pAdjustMethod = "BH") %>%
+  filter(adjust.pvalue < 0.05)
+
+
 ```
 
 ## pair-wise for rare bioshpere
@@ -511,7 +554,9 @@ tree <- phangorn::upgma(kdist_rare)
 write.tree(tree, file = "ITS2_kmer_rare.tree")
 
 # add the tree back into the phyloseq object
+
 tree_rare <- read_tree("ITS2_kmer_rare.tree")
+
 phy_tree(ps_rare) <- phy_tree(tree_rare)
 
 saveRDS(ps_rare, "ps_rare_w_kmer_tree.rds")
@@ -1472,7 +1517,7 @@ differential_MED_list <- differential_MED %>%
   select(seq) %>%
   distinct()
 
-DIV_list <- c("D1", "D4", "D6", "D1b", "D1d", "D6c", "D4d", "D1ab",	"D2", "D4c", "D1c", "C3f", "C3", "C50a", "C3fl", "C3ae", "C3fm", "C50q", "C3b", "C3h", "C3bj", "C3fo", "C3a", "C21", "C1", "C1c", "C1b", "C42.2", "C1br", "C1bh", "C1cb", "C72k", "C1C3", "C1c", "C1b", "C72k'", "C1w", "C1u", "C1bo", "C1y", "C15", "C15by", "A1", "A1ee", "C91",  "C15", "C15ek", "C15gy", "C15gk", "C15el", "B1", "B1a", "B1b", "B1g", "C42a", "C1", "C42.2", "C1j", "C1b", "C42as", "C42aa", "C42aq", "C1", "C42ar", "C42a", "C42b", "C1au", "C42g",	"C42h", "C42i",	"C1au", "A1", "A1bw", "A1bf", "A1bx", "C15by"	) 
+DIV_list <- c("D1", "D4", "D6", "D1b", "D1d", "D6c", "D4d", "D1ab",	"D2", "D4c", "D1c", "C3f", "C3", "C50a", "C3fl", "C3ae", "C3fm", "C50q", "C3b", "C3h", "C3bj", "C3fo", "C3a", "C21", "C1", "C1c", "C1b", "C42.2", "C1br", "C1bh", "C1cb", "C72k", "C1C3", "C1c", "C1b", "C72k'", "C1w", "C1u", "C1bo", "C1y", "C15", "C15by", "A1", "A1ee", "C91",  "C15", "C15ek", "C15gy", "C15gk", "C15el", "B1", "B1a", "B1b", "B1g", "C42a", "C1", "C42.2", "C1j", "C1b", "C42as", "C42aa", "C42aq", "C1", "C42ar", "C42a", "C42b", "C1au", "C42g",	"C42h", "C42i",	"C1au", "A1", "A1bw", "A1bf", "A1bx", "C15by") 
 
 DIV_list <- as.data.frame(DIV_list) %>%
   distinct()
