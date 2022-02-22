@@ -92,6 +92,10 @@ post_MED_abs <- readRDS("post_MED_abs.RDS")
 differential_ASV <- readRDS("differential_ASV.rds")
 
 differential_MED <- readRDS("differential_MED.rds")
+
+#match species names to phyloseq object
+FqFmparams$species <- gsub("Porites lutea cf lobata", "Porites lutea cf. lobata", FqFmparams$species)
+pair_wise_photo$species <- gsub("Porites lutea cf lobata", "Porites lutea cf. lobata", pair_wise_photo$species)
 ```
 
 
@@ -336,8 +340,6 @@ saveRDS(taxfilt, "seqtab.nochim.tax.rds")
 
 # 6. Hand-off to phyloseq
 
-
-
 ```{r}
 seqtab.nochim <- readRDS("seqtab.nochim.rds")
 
@@ -397,341 +399,6 @@ phy_tree(ps_sub) <- phy_tree(tree)
 saveRDS(ps_sub, "ps_sub_w_kmer_tree.rds")
 ```
 
-#pair_wise photobiology vs UniFrac
-
-```{r}
-#filter for only species with significantly differentially abundant sequnece variants
-ps_hetero_ITS2 <- ps_sub %>%
-  subset_samples(species == "Acropora cf anthocercis" | species == "Acropora elseyi" | species == "Acropora hyacinthus" | species == "Hydnophora microconos" | species == "Porites lutea cf. lobata" | species == "Acropora nasuta" | species == "Favia stelligera")
-
-# Transform abundances
-
-ps.hell <- microbiome::transform(ps_hetero_ITS2, transform = "hellinger", target = "OTU", shift = 1, scale = 1)
-
-#Create distance matrix
-ps.uni_c_v_e <- phyloseq::distance(ps.hell, method = "wunifrac") %>% as.matrix()  
-
-long_dist <- reshape2::melt(ps.uni_c_v_e)[melt(lower.tri(ps.uni_c_v_e))$value,] %>%
-  #mutate(value = (1-value)*100) %>%
-  select(from = Var1, to = Var2, uni = value) %>%
-  mutate(pair1 = str_sub(from, start = 2),
-         pair2 = str_sub(to, start = 2)) %>%
-  filter(pair1 == pair2) %>%
-  mutate(pair1 = as.numeric(pair1), pair2 = as.numeric(pair2))
-
-# Get photobiology
-
-pair_wise_total_brightness <- left_join((total_brightness %>% rename(Sample = sampleID)), (melt %>% select(Sample, pair) %>% distinct()), by = "Sample") %>% 
-  filter(Sample != "C49" & Sample != "E49" & Sample != "C96" & Sample != "E96") %>%
-  filter(species == "Acropora cf anthocercis" | species == "Acropora elseyi" | species == "Acropora hyacinthus" | species == "Hydnophora microconos" | species == "Porites lutea cf. lobata" | species == "Acropora nasuta" | species == "Favia stelligera") %>%
-  select(total_reflectance, pair, habitat) %>% pivot_wider(values_from = total_reflectance, names_from = habitat) %>% 
-  rename(total_reflectance_cryptic = cryptic, total_reflectance_exposed = exposed)
-
-pair_wise_photo <- pair_wise_photo %>%
-  mutate(pair = as.numeric(pair)) %>%
-  filter(pair != 96 & pair != 49) %>%
-  filter(species == "Acropora cf anthocercis" | species == "Acropora elseyi" | species == "Acropora hyacinthus" | species == "Hydnophora microconos" | species == "Porites lutea cf. lobata" | species == "Acropora nasuta" | species == "Favia stelligera")
-
-pair_wise_photo <- left_join(pair_wise_photo, pair_wise_total_brightness, by = "pair")
-
-long_dist_photo <- left_join(long_dist, pair_wise_photo, by = c("pair1" = "pair")) %>%
-  mutate(delta_onemQ = onemQ_cryptic - onemQ_exposed, 
-         delta_onemC = onemC_exposed - onemC_cryptic, 
-         delta_total_reflectance = total_reflectance_exposed - total_reflectance_cryptic) 
-
-
-ggplot(long_dist_photo, aes(uni, delta_onemQ)) +
-  geom_point(aes(col = species)) +
-  geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
-  facet_wrap(~species)
-
-ggplot(long_dist_photo, aes(uni, delta_onemC)) +
-  geom_point(aes(col = species)) +
-  geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
-  facet_wrap(~species)
-
-ggplot(long_dist_photo, aes(uni, delta_total_reflectance)) +
-  geom_point(aes(col = species)) +
-  geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
-  facet_wrap(~species)
-
-pair_wise_photo_Ek_FqFmmax <- FqFmparams %>%
-  ungroup() %>%
-  mutate(pair = str_sub(sampleID, start = 2)) %>%
-  select(pair, species, term, estimate, habitat) %>%
-  pivot_wider(names_from = term, values_from = estimate) %>%
-  pivot_wider(names_from = habitat, values_from = FqFmmax:Ek) %>%
-  mutate(pair = as.numeric(pair)) %>%
-  filter(pair != 96 & pair != 49)
-  
-saveRDS(pair_wise_photo_Ek_FqFmmax, "pair_wise_photo_Ek_FqFmmax.RDS") 
-
-
-long_dist_photo_Ek_FqFmmax <- left_join(long_dist, pair_wise_photo_Ek_FqFmmax, by = c("pair1" = "pair") ) %>% 
-  mutate(delta_FqFmmax = FqFmmax_cryptic - FqFmmax_exposed, 
-         delta_Ek = Ek_exposed - Ek_cryptic) 
-
-ggplot(long_dist_photo_Ek_FqFmmax, aes(uni, delta_Ek)) +
-  geom_point(aes(col = species)) +
-  geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
-  facet_wrap(~species)
-
-
-lm_Ek <- long_dist_photo_Ek_FqFmmax %>% group_by(species) %>% do(tidy(lm(uni ~ delta_Ek, data = .))) %>%
-  filter(term == "delta_Ek")
-
-lm_FqFmmax <- long_dist_photo_Ek_FqFmmax %>% group_by(species) %>% do(tidy(lm(uni ~ delta_FqFmmax, data = .))) %>%
-  filter(term == "delta_FqFmmax") 
-
-lm_onemC <- long_dist_photo %>% group_by(species) %>% do(tidy(lm(uni ~ delta_onemC, data = .))) %>%
-  filter(term == "delta_onemC") 
-
-lm_onemQ <- long_dist_photo %>% group_by(species) %>% do(tidy(lm(uni ~ delta_onemQ, data = .))) %>%
-  filter(term == "delta_onemQ")
-
-lm_total_reflectance <- long_dist_photo %>% group_by(species) %>% do(tidy(lm(uni ~ delta_total_reflectance, data = .))) %>%
-  filter(term == "delta_total_reflectance")
-
-lm_all <- rbind(lm_Ek, lm_FqFmmax, lm_onemC, lm_onemQ)
-
-#adjust p-values
-
-get_adjusted_pval <- function(df, pAdjustMethod = "BH", ...) {
-    if(is.null(df$p.value)) {
-        stop("p-value is required")
-    } else {
-        p <- df$p.value
-        df$adjust.pvalue <- p.adjust(p, method = pAdjustMethod)
-        df
-    }
-}
-
-p_adjusted_all <- get_adjusted_pval(lm_all, pAdjustMethod = "BH") %>%
-  filter(adjust.pvalue < 0.05)
-
-
-```
-
-## pair-wise for rare bioshpere
-
-```{r}
-#filter samples for only rare (< 0.01 freq) ASVs
-
-rare_OTU_df <- melt %>%
-  select(OTU, Sample, Abundance, habitat, species) %>%
-  group_by(Sample) %>%
-  mutate(rel_freq = Abundance / sum(Abundance)) %>%
-  filter(rel_freq > 0, rel_freq < 0.01) %>%
-  ungroup()
-
-sample_list <- raro_metadata %>% filter(project == "c_v_e", pair != 96 & pair != 49, sample_ID != "C1") %>% select(sample_ID)
-sample_list <- as.character(sample_list$sample_ID)
-
-ps_rare <- ps %>% subset_samples(sample_ID == "C1")
-rare_OTU_C1 <- rare_OTU_df %>% filter(Sample == "C1")
-ps_rare <- prune_taxa(rare_OTU_C1$OTU, ps_rare)
-
-for(i in 1:length(sample_list)) {
-  
-  ps_i <- subset_samples(ps, ps@sam_data$sample_ID %in% sample_list[i])
-  rare_OTU_i <- rare_OTU_df %>% filter(Sample %in% sample_list[i])
-  ps_i <- prune_taxa(rare_OTU_i$OTU, ps_i)
-  ps_rare <- merge_phyloseq(ps_rare, ps_i)
-}
-
-ps_rare <- prune_taxa(taxa_sums(ps_rare) > 0, ps_rare)
-
-ASVs_rare <- refseq(ps_rare) %>%
-    DNAStringSet_to_df()
-  
-kdist_rare <- ASVs_rare %>%
-  df_to_DNAStringset() %>%
-  DNAStringSet_to_DNAbin() %>%
-  kmer::kdistance(k = 7, residues = "DNA", method = "edgar") %>%
-  as.matrix()
-
-tree <- phangorn::upgma(kdist_rare)
-write.tree(tree, file = "ITS2_kmer_rare.tree")
-
-# add the tree back into the phyloseq object
-
-tree_rare <- read_tree("ITS2_kmer_rare.tree")
-
-phy_tree(ps_rare) <- phy_tree(tree_rare)
-
-saveRDS(ps_rare, "ps_rare_w_kmer_tree.rds")
-```
-
-
-```{r}
-
-#Transform abundances
-ps.hell_rare <- microbiome::transform(ps_rare, transform = "hellinger", target = "OTU", shift = 1, scale = 1)
-
-#Create distance matrix
-ps_rare_dist <- phyloseq::distance(ps.hell_rare, method = "wunifrac") %>% as.matrix()  
-
-long_dist_rare <- reshape2::melt(ps_rare_dist)[melt(lower.tri(ps_rare_dist))$value,] %>%
-  #mutate(value = (1-value)*100) %>%
-  select(from = Var1, to = Var2, uni = value) %>%
-  mutate(pair1 = str_sub(from, start = 2),
-         pair2 = str_sub(to, start = 2)) %>%
-  filter(pair1 == pair2) %>%
-  mutate(pair1 = as.numeric(pair1), pair2 = as.numeric(pair2))
-
-# Get photobiology
-
-pair_wise_total_brightness <- left_join((total_brightness %>% rename(Sample = sampleID)), (melt %>% select(Sample, pair) %>% distinct()), by = "Sample") %>% 
-  filter(Sample != "C49" & Sample != "E49" & Sample != "C96" & Sample != "E96") %>%
-  select(total_reflectance, pair, habitat) %>% pivot_wider(values_from = total_reflectance, names_from = habitat) %>% rename(total_reflectance_cryptic = cryptic, total_reflectance_exposed = exposed)
-
-pair_wise_photo <- readRDS("pair_wise_photo.RDS") %>% 
-   mutate(pair = as.numeric(pair)) %>%
-  filter(pair != 96 & pair != 49)
-
-pair_wise_photo <- left_join(pair_wise_photo, pair_wise_total_brightness, by = "pair")
-
-long_dist_rare_photo <- left_join(long_dist_rare, pair_wise_photo, by = c("pair1" = "pair")) %>%
-  mutate(delta_onemQ = onemQ_cryptic - onemQ_exposed, 
-         delta_onemC = onemC_exposed - onemC_cryptic, 
-         delta_total_reflectance = total_reflectance_exposed - total_reflectance_cryptic) 
-
-
-ggplot(long_dist_rare_photo, aes(uni, delta_onemQ)) +
-  geom_point(aes(col = species)) +
-  geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
-  facet_wrap(~species)
-
-ggplot(long_dist_rare_photo, aes(uni, delta_onemC)) +
-  geom_point(aes(col = species)) +
-  geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
-  facet_wrap(~species) 
-
-ggplot(long_dist_rare_photo, aes(uni, delta_total_reflectance)) +
-  geom_point(aes(col = species)) +
-  geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
-  facet_wrap(~species)
-
-pair_wise_photo_Ek_FqFmmax <- FqFmparams %>%
-  ungroup() %>%
-  mutate(pair = str_sub(sampleID, start = 2)) %>%
-  select(pair, species, term, estimate, habitat) %>%
-  pivot_wider(names_from = term, values_from = estimate) %>%
-  pivot_wider(names_from = habitat, values_from = FqFmmax:Ek) %>%
-  mutate(pair = as.numeric(pair))
-  
-saveRDS(pair_wise_photo_Ek_FqFmmax, "pair_wise_photo_Ek_FqFmmax.RDS") 
-
-
-long_dist_rare_photo_Ek_FqFmmax <- left_join(long_dist_rare, pair_wise_photo_Ek_FqFmmax, by = c("pair1" = "pair") ) %>% 
-  mutate(delta_FqFmmax = FqFmmax_cryptic - FqFmmax_exposed, 
-         delta_Ek = Ek_exposed - Ek_cryptic) 
-
-ggplot(long_dist_rare_photo_Ek_FqFmmax, aes(uni, delta_Ek)) +
-  geom_point() +
-  geom_encircle(s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
-  facet_wrap(~species)
-
-rare_lm_Ek <- long_dist_rare_photo_Ek_FqFmmax %>% group_by(species) %>% do(tidy(lm(uni ~ delta_Ek, data = .))) %>%
-  filter(term == "delta_Ek")
-
-rare_lm_FqFmmax <- long_dist_rare_photo_Ek_FqFmmax %>% group_by(species) %>% do(tidy(lm(uni ~ delta_FqFmmax, data = .))) %>%
-  filter(term == "delta_FqFmmax") 
-
-rare_lm_onemC <- long_dist_rare_photo %>% group_by(species) %>% do(tidy(lm(uni ~ delta_onemC, data = .))) %>%
-  filter(term == "delta_onemC") 
-
-rare_lm_onemQ <- long_dist_rare_photo %>% group_by(species) %>% do(tidy(lm(uni ~ delta_onemQ, data = .))) %>%
-  filter(term == "delta_onemQ")
-
-rare_lm_total_reflectance <- long_dist_rare_photo %>% group_by(species) %>% do(tidy(lm(uni ~ delta_total_reflectance, data = .))) %>%
-  filter(term == "delta_total_reflectance")
-
-rare_lm_all <- rbind(rare_lm_Ek, rare_lm_FqFmmax, rare_lm_onemC, rare_lm_onemQ)
-
-#adjust p-values
-
-get_adjusted_pval <- function(df, pAdjustMethod = "BH", ...) {
-    if(is.null(df$p.value)) {
-        stop("p-value is required")
-    } else {
-        p <- df$p.value
-        df$adjust.pvalue <- p.adjust(p, method = pAdjustMethod)
-        df
-    }
-}
-
-p_adjusted_all <- get_adjusted_pval(rare_lm_all, pAdjustMethod = "BH") %>%
-  filter(adjust.pvalue < 0.05)
-
-p_adjusted_Ek <- get_adjusted_pval(rare_lm_Ek, pAdjustMethod = "BH")
-p_adjusted_FqFmmax <- get_adjusted_pval(rare_lm_FqFmmax, pAdjustMethod = "BH")
-p_adjusted_onemC <- get_adjusted_pval(rare_lm_onemC, pAdjustMethod = "BH")
-p_adjusted_onemQ <- get_adjusted_pval(rare_lm_onemQ, pAdjustMethod = "BH")
-p_adjusted_total_reflectance <- get_adjusted_pval(rare_lm_total_reflectance, pAdjustMethod = "BH")
-
-
-
-p_adjust_df <- rbind(p_adjusted_Ek, p_adjusted_FqFmmax, p_adjusted_onemC, p_adjusted_onemQ, p_adjusted_total_reflectance) %>%
-  filter(adjust.pvalue < 0.05)
-```
-
-###Hydonophora plots
-```{r}
-H.micro_delta_onemQ <- long_dist_rare_photo %>% 
-  filter(species =="Hydnophora microconos") %>%
-  ggplot(aes(uni, delta_onemQ)) +
-  geom_point(aes(size = 3)) +
-  geom_smooth(method='lm', formula= y~x, col = "black", alpha = 0.2) +
-  ylab("Delta [1 - Q]") +
-  xlab("UniFrac distance") + 
-  theme_bw() + 
-  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
-panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
-  theme(legend.position = "none")
-
-H.micro_delta_onemC <- long_dist_rare_photo %>% 
-  filter(species =="Hydnophora microconos") %>%
-  ggplot(aes(uni, delta_onemC)) +
-  geom_point() +
-  geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
-  theme(aspect.ratio = 1, axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.1)) +
-  ylab("Delta [1 - C]") +
-  xlab("UniFrac distance") + 
-  theme_bw() + 
-  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
-panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
-
-H.micro_delta_Ek <- long_dist_rare_photo_Ek_FqFmmax %>%
-  filter(species =="Hydnophora microconos") %>%
-  ggplot(aes(uni, delta_Ek)) +
-  geom_point() +
-  geom_encircle(s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
-  theme(aspect.ratio = 1, axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.1)) +
-  ylab("Delta Ek") +
-  xlab("UniFrac distance") + 
-  theme_bw() + 
-  theme(panel.border = element_blank(), panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) 
-
-H.micro_FqFmmax <- long_dist_rare_photo_Ek_FqFmmax %>%
-  filter(species =="Hydnophora microconos") %>%
-  ggplot(aes(uni, delta_FqFmmax)) +
-  geom_point() +
-  geom_encircle(s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
-  theme(aspect.ratio = 1, axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.1)) +
-  ylab("Delta Fq/Fm max") +
-  xlab("UniFrac distance") + 
-  theme_bw() + 
-  theme(panel.border = element_blank(), panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
-
-H.micro_plot <- (H.micro_FqFmmax + H.micro_delta_Ek) / (H.micro_delta_onemC + H.micro_delta_onemQ)
-
-H.micro_plot
-
-ggsave(plot = H.micro_delta_onemQ, "H.micro_delta_onemQ.pdf", height = 5, width = 8)
-```
 
 #Plot phyloseq melt
 
@@ -1229,7 +896,8 @@ saveRDS(differential_ASV, "differential_ASV.rds")
 ```{r}
 
 differential_ASV %>%
-  group_by(species) %>%
+  ungroup() %>%
+  select(OTU) %>%
   summarise(sumASV = n_distinct(OTU))
 
 
@@ -1247,13 +915,13 @@ differntial_abundance_melt_total <- melt %>%
 differential_abundance_freq <- left_join(differential_abundance_freq, differntial_abundance_melt_total, by = "species")
 
 differential_abundance_freq %>%
+  filter(species != "Porites lutea cf. lobata") %>%
   mutate(freq = sum_dif_abundant/total_Abundance) %>%
   summarise(mean_rel_freq = mean(freq), sd = sd(freq))
 
 differential_abundance_freq %>%
-  filter(species != "Porites lutea cf. lobata") %>%
-  mutate(freq = sum_dif_abundant/total_Abundance) %>%
-  summarise(mean_rel_freq = mean(freq), sd = sd(freq))
+  filter(species == "Porites lutea cf. lobata") %>%
+  mutate(freq = sum_dif_abundant/total_Abundance)
 
 #cyrtic or exposed or both presence
 
@@ -1452,8 +1120,9 @@ saveRDS(differential_MED, "differential_MED.rds")
 ###plot LFCs
 ```{r}
 differential_MED %>%
-  group_by(species) %>%
-  summarise(sum_seq = n_distinct(seq))
+  ungroup() %>%
+  select(seq) %>%
+  summarise(sumASV = n_distinct(seq))
 
 
 differential_abundance_freq <- differential_MED %>%
@@ -1508,9 +1177,8 @@ differential_MED %>%
 ggsave("Fig_differential_abundance_MED.pdf", units = "in", width = 7, height = 5)
 ```
 
-
+###confirm presence of post-MED seqs as DIVs
 ```{r}
-#confirm presence of post-MED seqs as DIVs
 
 differential_MED_list <- differential_MED %>%
   ungroup() %>%
@@ -1528,6 +1196,286 @@ differential_MED_list %>%
 differential_MED_list %>%
   filter(str_detect(seq, "X"))
 
+```
+
+#pair_wise photobiology vs UniFrac
+
+```{r}
+#filter for only species with significantly differential abundant sequence variants
+ps_hetero_ITS2 <- ps_sub %>%
+  subset_samples(species == "Acropora cf anthocercis" | species == "Acropora elseyi" | species == "Acropora hyacinthus" | species == "Hydnophora microconos" | species == "Porites lutea cf. lobata" | species == "Acropora nasuta" | species == "Favia stelligera")
+
+# Transform abundances
+
+ps.hell <- microbiome::transform(ps_hetero_ITS2, transform = "hellinger", target = "OTU", shift = 1, scale = 1)
+
+#Create distance matrix
+ps.uni_c_v_e <- phyloseq::distance(ps.hell, method = "wunifrac") %>% as.matrix()  
+
+long_dist <- reshape2::melt(ps.uni_c_v_e)[melt(lower.tri(ps.uni_c_v_e))$value,] %>%
+  #mutate(value = (1-value)*100) %>%
+  select(from = Var1, to = Var2, uni = value) %>%
+  mutate(pair1 = str_sub(from, start = 2),
+         pair2 = str_sub(to, start = 2)) %>%
+  filter(pair1 == pair2) %>%
+  mutate(pair1 = as.numeric(pair1), pair2 = as.numeric(pair2))
+
+## Get photobiology
+
+pair_wise_photo_onemC_onemQ <- pair_wise_photo %>%
+  mutate(pair = as.numeric(pair)) %>%
+  filter(pair != 96 & pair != 49) %>%
+  filter(species == "Acropora cf anthocercis" | species == "Acropora elseyi" | species == "Acropora hyacinthus" | species == "Hydnophora microconos" | species == "Porites lutea cf. lobata" | species == "Acropora nasuta" | species == "Favia stelligera")
+
+
+long_dist_photo <- left_join(long_dist, pair_wise_photo_onemC_onemQ, by = c("pair1" = "pair")) %>%
+  mutate(delta_onemQ = onemQ_cryptic - onemQ_exposed, 
+         delta_onemC = onemC_exposed - onemC_cryptic) 
+
+
+ggplot(long_dist_photo, aes(uni, delta_onemQ)) +
+  geom_point(aes(col = species)) +
+  geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
+  facet_wrap(~species)
+
+ggplot(long_dist_photo, aes(uni, delta_onemC)) +
+  geom_point(aes(col = species)) +
+  geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
+  facet_wrap(~species)
+
+
+pair_wise_photo_Ek_FqFmmax <- FqFmparams %>%
+  ungroup() %>%
+  mutate(pair = str_sub(sampleID, start = 2)) %>%
+  select(pair, species, term, estimate, habitat) %>%
+  pivot_wider(names_from = term, values_from = estimate) %>%
+  pivot_wider(names_from = habitat, values_from = FqFmmax:Ek) %>%
+  mutate(pair = as.numeric(pair)) %>%
+  filter(pair != 96 & pair != 49) %>%
+  filter(species == "Acropora cf anthocercis" | species == "Acropora elseyi" | species == "Acropora hyacinthus" | species == "Hydnophora microconos" | species == "Porites lutea cf. lobata" | species == "Acropora nasuta" | species == "Favia stelligera")
+  
+
+long_dist_photo_Ek_FqFmmax <- left_join(long_dist, pair_wise_photo_Ek_FqFmmax, by = c("pair1" = "pair") ) %>% 
+  mutate(delta_FqFmmax = FqFmmax_cryptic - FqFmmax_exposed, 
+         delta_Ek = Ek_exposed - Ek_cryptic) 
+
+ggplot(long_dist_photo_Ek_FqFmmax, aes(uni, delta_FqFmmax)) +
+  geom_point(aes(col = species)) +
+  geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
+  facet_wrap(~species)
+
+ggplot(long_dist_photo_Ek_FqFmmax, aes(uni, delta_Ek)) +
+  geom_point(aes(col = species)) +
+  geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
+  facet_wrap(~species)
+
+
+lm_Ek <- long_dist_photo_Ek_FqFmmax %>% group_by(species) %>% do(tidy(lm(uni ~ delta_Ek, data = .))) %>%
+  filter(term == "delta_Ek")
+
+lm_FqFmmax <- long_dist_photo_Ek_FqFmmax %>% group_by(species) %>% do(tidy(lm(uni ~ delta_FqFmmax, data = .))) %>%
+  filter(term == "delta_FqFmmax") 
+
+lm_onemC <- long_dist_photo %>% group_by(species) %>% do(tidy(lm(uni ~ delta_onemC, data = .))) %>%
+  filter(term == "delta_onemC") 
+
+lm_onemQ <- long_dist_photo %>% group_by(species) %>% do(tidy(lm(uni ~ delta_onemQ, data = .))) %>%
+  filter(term == "delta_onemQ")
+
+
+lm_all <- rbind(lm_Ek, lm_FqFmmax, lm_onemC, lm_onemQ)
+
+#adjust p-values
+
+get_adjusted_pval <- function(df, pAdjustMethod = "BH", ...) {
+    if(is.null(df$p.value)) {
+        stop("p-value is required")
+    } else {
+        p <- df$p.value
+        df$adjust.pvalue <- p.adjust(p, method = pAdjustMethod)
+        df
+    }
+}
+
+p_adjusted_lm_all <- get_adjusted_pval(lm_all, pAdjustMethod = "BH") %>%
+  filter(adjust.pvalue < 0.05)
+
+p_adjusted_lm_all
+#no significant linear models
+
+```
+
+## pair-wise photobiology vs UniFrac for rare Symbiodiniaceae bioshpere
+
+```{r}
+#filter samples for only rare (< 0.01 freq) ASVs
+
+rare_OTU_df <- melt %>%
+  select(OTU, Sample, Abundance, habitat, species) %>%
+  group_by(Sample) %>%
+  mutate(rel_freq = Abundance / sum(Abundance)) %>%
+  filter(rel_freq > 0, rel_freq < 0.01) %>%
+  ungroup()
+
+#filter for only species with significantly differential abundant sequence variants
+sample_list <- raro_metadata %>% filter(project == "c_v_e", pair != 96 & pair != 49, species == "Acropora cf anthocercis" | species == "Acropora elseyi" | species == "Acropora hyacinthus" | species == "Hydnophora microconos" | species == "Porites lutea cf. lobata" | species == "Acropora nasuta" | species == "Favia stelligera", sample_ID != "C6") %>% select(sample_ID)
+sample_list <- as.character(sample_list$sample_ID)
+
+ps_rare <- ps %>% subset_samples(sample_ID == "C6")
+rare_OTU_C1 <- rare_OTU_df %>% filter(Sample == "C6")
+ps_rare <- prune_taxa(rare_OTU_C1$OTU, ps_rare)
+
+for(i in 1:length(sample_list)) {
+  
+  ps_i <- subset_samples(ps, ps@sam_data$sample_ID %in% sample_list[i])
+  rare_OTU_i <- rare_OTU_df %>% filter(Sample %in% sample_list[i])
+  ps_i <- prune_taxa(rare_OTU_i$OTU, ps_i)
+  ps_rare <- merge_phyloseq(ps_rare, ps_i)
+}
+
+ps_rare <- prune_taxa(taxa_sums(ps_rare) > 0, ps_rare)
+
+ASVs_rare <- refseq(ps_rare) %>%
+    DNAStringSet_to_df()
+  
+kdist_rare <- ASVs_rare %>%
+  df_to_DNAStringset() %>%
+  DNAStringSet_to_DNAbin() %>%
+  kmer::kdistance(k = 7, residues = "DNA", method = "edgar") %>%
+  as.matrix()
+
+tree <- phangorn::upgma(kdist_rare)
+write.tree(tree, file = "ITS2_kmer_rare.tree")
+
+# add the tree back into the phyloseq object
+
+tree_rare <- read_tree("ITS2_kmer_rare.tree")
+
+phy_tree(ps_rare) <- phy_tree(tree_rare)
+
+saveRDS(ps_rare, "ps_rare_w_kmer_tree.rds")
+```
+
+
+```{r}
+
+#Transform abundances
+ps.hell_rare <- microbiome::transform(ps_rare, transform = "hellinger", target = "OTU", shift = 1, scale = 1)
+
+#Create distance matrix
+ps_rare_dist <- phyloseq::distance(ps.hell_rare, method = "wunifrac") %>% as.matrix()  
+
+long_dist_rare <- reshape2::melt(ps_rare_dist)[melt(lower.tri(ps_rare_dist))$value,] %>%
+  #mutate(value = (1-value)*100) %>%
+  select(from = Var1, to = Var2, uni = value) %>%
+  mutate(pair1 = str_sub(from, start = 2),
+         pair2 = str_sub(to, start = 2)) %>%
+  filter(pair1 == pair2) %>%
+  mutate(pair1 = as.numeric(pair1), pair2 = as.numeric(pair2))
+
+# Get photobiology
+
+
+pair_wise_photo_onemC_onemQ <- pair_wise_photo %>% 
+   mutate(pair = as.numeric(pair)) %>%
+  filter(pair != 96 & pair != 49) %>%
+  filter(species == "Acropora cf anthocercis" | species == "Acropora elseyi" | species == "Acropora hyacinthus" | species == "Hydnophora microconos" | species == "Porites lutea cf. lobata" | species == "Acropora nasuta" | species == "Favia stelligera")
+
+
+long_dist_rare_photo <- left_join(long_dist_rare, pair_wise_photo_onemC_onemQ, by = c("pair1" = "pair")) %>%
+  mutate(delta_onemQ = onemQ_cryptic - onemQ_exposed, 
+         delta_onemC = onemC_exposed - onemC_cryptic) 
+
+
+ggplot(long_dist_rare_photo, aes(uni, delta_onemQ)) +
+  geom_point(aes(col = species)) +
+  geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
+  facet_wrap(~species)
+
+ggplot(long_dist_rare_photo, aes(uni, delta_onemC)) +
+  geom_point(aes(col = species)) +
+  geom_encircle(aes(fill = species), s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
+  facet_wrap(~species) 
+
+
+pair_wise_photo_Ek_FqFmmax <- FqFmparams %>%
+  ungroup() %>%
+  mutate(pair = str_sub(sampleID, start = 2)) %>%
+  select(pair, species, term, estimate, habitat) %>%
+  pivot_wider(names_from = term, values_from = estimate) %>%
+  pivot_wider(names_from = habitat, values_from = FqFmmax:Ek) %>%
+  mutate(pair = as.numeric(pair)) %>%
+  filter(pair != 96 & pair != 49) %>%
+  filter(species == "Acropora cf anthocercis" | species == "Acropora elseyi" | species == "Acropora hyacinthus" | species == "Hydnophora microconos" | species == "Porites lutea cf. lobata" | species == "Acropora nasuta" | species == "Favia stelligera")
+
+long_dist_rare_photo_Ek_FqFmmax <- left_join(long_dist_rare, pair_wise_photo_Ek_FqFmmax, by = c("pair1" = "pair") ) %>% 
+  mutate(delta_FqFmmax = FqFmmax_cryptic - FqFmmax_exposed, 
+         delta_Ek = Ek_exposed - Ek_cryptic) 
+
+ggplot(long_dist_rare_photo_Ek_FqFmmax, aes(uni, delta_FqFmmax)) +
+  geom_point() +
+  geom_encircle(s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
+  facet_wrap(~species)
+
+ggplot(long_dist_rare_photo_Ek_FqFmmax, aes(uni, delta_Ek)) +
+  geom_point() +
+  geom_encircle(s_shape = 1, expand = 0, alpha = 0.2, show.legend = FALSE) +
+  facet_wrap(~species)
+
+rare_lm_Ek <- long_dist_rare_photo_Ek_FqFmmax %>% group_by(species) %>% do(tidy(lm(uni ~ delta_Ek, data = .))) %>%
+  filter(term == "delta_Ek")
+
+rare_lm_FqFmmax <- long_dist_rare_photo_Ek_FqFmmax %>% group_by(species) %>% do(tidy(lm(uni ~ delta_FqFmmax, data = .))) %>%
+  filter(term == "delta_FqFmmax") 
+
+rare_lm_onemC <- long_dist_rare_photo %>% group_by(species) %>% do(tidy(lm(uni ~ delta_onemC, data = .))) %>%
+  filter(term == "delta_onemC") 
+
+rare_lm_onemQ <- long_dist_rare_photo %>% group_by(species) %>% do(tidy(lm(uni ~ delta_onemQ, data = .))) %>%
+  filter(term == "delta_onemQ")
+
+
+rare_lm_all <- rbind(rare_lm_Ek, rare_lm_FqFmmax, rare_lm_onemC, rare_lm_onemQ)
+
+#adjust p-values
+
+get_adjusted_pval <- function(df, pAdjustMethod = "BH", ...) {
+    if(is.null(df$p.value)) {
+        stop("p-value is required")
+    } else {
+        p <- df$p.value
+        df$adjust.pvalue <- p.adjust(p, method = pAdjustMethod)
+        df
+    }
+}
+
+p_adjusted_rare_lm_all <- get_adjusted_pval(rare_lm_all, pAdjustMethod = "BH") %>%
+  filter(adjust.pvalue < 0.05)
+
+p_adjusted_rare_lm_all
+```
+
+###Hydonophora plots
+```{r}
+H.micro_delta_onemQ <- long_dist_rare_photo %>% 
+  filter(species =="Hydnophora microconos") %>%
+  ggplot(aes(uni, delta_onemQ)) +
+  geom_point(aes(size = 1.5)) +
+  geom_smooth(method='lm', formula= y~x, col = "black", alpha = 0.2, se = FALSE) +
+  ylab("Delta [1 - Q]") +
+  xlab("UniFrac distance") + 
+  theme_bw() + 
+  theme(panel.border = element_blank(), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14)) +
+  theme(legend.position = "none")
+
+
+
+ggsave(plot = H.micro_delta_onemQ, "H.micro_delta_onemQ.pdf", height = 4, width = 5)
 ```
 
 
